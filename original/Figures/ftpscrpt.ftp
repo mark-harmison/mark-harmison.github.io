@@ -1,0 +1,63 @@
+open www2.rpa.net
+harmison
+sgml8879
+cd public_html/octagon/Figures
+binary
+hash
+prompt
+put full_house_2.jpg
+put tr_1_1.jpg
+put dining_4.jpg
+put dining_3.jpg
+put dining_2.jpg
+put dining_1.jpg
+put back_hall_1.jpg
+put kitchen_6.jpg
+put kitchen_5.jpg
+put pantry_2.jpg
+put pantry_1.jpg
+put kitchen_4.jpg
+put kitchen_3.jpg
+put kitchen_2.jpg
+put kitchen_1.jpg
+put parlor_6.jpg
+put parlor_5.jpg
+put parlor_4.jpg
+put parlor_3.jpg
+put stair_1_5.jpg
+put stair_1_4.jpg
+put stair_1_3.jpg
+put stair_1_2.jpg
+put stair_1_1.jpg
+put living_room_5.jpg
+put light.jpg
+put living_room_4.jpg
+put living_room_3.jpg
+put living_room_2.jpg
+put living_room_1.jpg
+put front_hall_3.jpg
+put front_hall_2.jpg
+put br_2_10.jpg
+put br_2_9.jpg
+put br_2_8.jpg
+put tr_2_7.jpg
+put br_2_7.jpg
+put br_2_6.jpg
+put tr_2_6.jpg
+put tr_2_5.jpg
+put tr_2_3.jpg
+put br_2_4.jpg
+put br_2_3.jpg
+put stair_2_6.jpg
+put stair_2_5.jpg
+put stair_2_4.jpg
+put stair_2_3.jpg
+put stair_2_2.jpg
+put stair_2_1.jpg
+put br_2_2.jpg
+put br_2_1.jpg
+put tr_2_2.jpg
+put tr_2_1.jpg
+put cupola_3_5.jpg
+put cupola_3_4.jpg
+put cupola_3_1.jpg
