@@ -1,0 +1,2435 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Photo Gallery</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: Georgia, 'Times New Roman', serif;
+    background: #1a1a1a;
+    color: #f0f0f0;
+    min-height: 100vh;
+  }
+
+  header {
+    text-align: center;
+    padding: 2.5rem 1rem 1.5rem;
+    background: linear-gradient(180deg, #111 0%, #1a1a1a 100%);
+    border-bottom: 1px solid #333;
+  }
+  header h1 {
+    font-size: clamp(1.6rem, 4vw, 2.8rem);
+    font-weight: normal;
+    letter-spacing: 0.05em;
+    color: #e8d8b8;
+  }
+  header p.subtitle {
+    margin-top: 0.4rem;
+    font-size: 0.9rem;
+    color: #888;
+    font-style: italic;
+  }
+
+  .grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    padding: 2rem;
+    max-width: 1400px;
+    margin: 0 auto;
+    justify-content: center;
+    align-items: flex-start;
+  }
+  .thumb {
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    background: #111;
+    position: relative;
+    border: 2px solid transparent;
+    transition: border-color 0.2s, transform 0.2s;
+    max-width: {thumb_max_px}px;
+    max-height: {thumb_max_px}px;
+  }
+  .thumb:hover {
+    border-color: #e8d8b8;
+    transform: scale(1.03);
+    z-index: 1;
+  }
+  .thumb img {
+    display: block;
+    max-width: {thumb_max_px}px;
+    max-height: {thumb_max_px}px;
+    width: auto;
+    height: auto;
+    border-radius: 2px;
+  }
+  .thumb .thumb-caption {
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    background: linear-gradient(0deg, rgba(0,0,0,0.8) 0%, transparent 100%);
+    color: #fff;
+    font-size: 0.75rem;
+    padding: 1.5rem 0.5rem 0.4rem;
+    opacity: 0;
+    transition: opacity 0.25s;
+    white-space: pre;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .thumb:hover .thumb-caption { opacity: 1; }
+
+  #lightbox {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.93);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+  }
+  #lightbox.active { display: flex; }
+
+  #lb-img-wrap {
+    position: relative;
+    max-width: 90vw;
+    max-height: 75vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  #lb-img {
+    max-width: 90vw;
+    max-height: 75vh;
+    border-radius: 3px;
+    box-shadow: 0 8px 40px rgba(0,0,0,0.7);
+    display: block;
+  }
+
+  #lb-heading {
+    margin-top: 0.9rem;
+    font-size: clamp(1rem, 2.5vw, 1.4rem);
+    color: #ffffff;
+    text-align: center;
+    max-width: 80vw;
+    line-height: 1.4;
+    font-weight: bold;
+    font-style: normal;
+    font-family: Georgia, serif;
+    letter-spacing: 0.02em;
+    white-space: pre;
+  }
+  #lb-caption {
+    margin-top: 0.4rem;
+    font-size: clamp(0.85rem, 1.8vw, 1.1rem);
+    color: #e8d8b8;
+    text-align: center;
+    max-width: 80vw;
+    line-height: 1.5;
+    font-style: italic;
+    white-space:pre;
+  }
+  #lb-counter {
+    margin-top: 0.5rem;
+    font-size: 0.8rem;
+    color: #666;
+    font-style: normal;
+    font-family: sans-serif;
+  }
+  #lb-filename {
+    margin-top: 0.3rem;
+    font-size: 0.75rem;
+    color: #555;
+    font-style: normal;
+    font-family: 'Courier New', Courier, monospace;
+    letter-spacing: 0.03em;
+  }
+
+  .lb-btn {
+    position: fixed;
+    top: 50%;
+    transform: translateY(-50%);
+    background: rgba(255,255,255,0.1);
+    border: none;
+    color: #fff;
+    font-size: 2rem;
+    width: 3rem;
+    height: 5rem;
+    cursor: pointer;
+    border-radius: 3px;
+    transition: background 0.2s;
+    z-index: 1001;
+    line-height: 1;
+  }
+  .lb-btn:hover { background: rgba(255,255,255,0.25); }
+  #lb-prev { left: 0.5rem; }
+  #lb-next { right: 0.5rem; }
+
+  #lb-close {
+    position: fixed;
+    top: 1rem; right: 1rem;
+    background: rgba(255,255,255,0.1);
+    border: none;
+    color: #fff;
+    font-size: 1.6rem;
+    width: 2.5rem;
+    height: 2.5rem;
+    cursor: pointer;
+    border-radius: 50%;
+    transition: background 0.2s;
+    z-index: 1001;
+    line-height: 1;
+  }
+  #lb-close:hover { background: rgba(255,255,255,0.3); }
+
+  .hint {
+    text-align: center;
+    color: #555;
+    font-size: 0.75rem;
+    padding-bottom: 2rem;
+    font-family: sans-serif;
+  }
+
+  /* ── Download links ── */
+  .dl-link {
+    display: inline-block;
+    margin-top: 0.8rem;
+    padding: 0.35rem 0.9rem;
+    border: 1px solid #7a6a4a;
+    border-radius: 3px;
+    color: #c8b888;
+    background: transparent;
+    font-family: sans-serif;
+    font-size: 0.8rem;
+    text-decoration: none;
+    letter-spacing: 0.04em;
+    cursor: pointer;
+    transition: background 0.2s, color 0.2s;
+  }
+  .dl-link:hover {
+    background: #7a6a4a;
+    color: #fff;
+  }
+  #lb-download {
+    margin-top: 0.5rem;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Photo Gallery</h1>
+  <p class="subtitle">219 photos &mdash; click any image to view full size</p>
+  <button class="dl-link" onclick="forceDownload('Photo_Gallery.pdf', 'Photo_Gallery.pdf')">&#8659; Download PDF</button>
+</header>
+
+<div class="grid">
+  <div class="thumb" onclick="show(0)" tabindex="0" onkeydown="if(event.key==='Enter')show(0)" role="button" aria-label="4818 Hawthorne Ridge Dr. W. Lafayette, IN" title="4818 Hawthorne Ridge Dr. W. Lafayette, IN">
+    <img src="thumbs/1956.jpg" alt="4818 Hawthorne Ridge Dr. W. Lafayette, IN" loading="lazy">
+    <span class="thumb-caption">4818 Hawthorne Ridge Dr. W. Lafayette, IN</span>
+  </div>
+  <div class="thumb" onclick="show(1)" tabindex="0" onkeydown="if(event.key==='Enter')show(1)" role="button" aria-label="4818 Hawthorne Ridge Dr. W. Lafayette, IN" title="4818 Hawthorne Ridge Dr. W. Lafayette, IN">
+    <img src="thumbs/1973 Hawthorne Ridge.jpg" alt="4818 Hawthorne Ridge Dr. W. Lafayette, IN" loading="lazy">
+    <span class="thumb-caption">4818 Hawthorne Ridge Dr. W. Lafayette, IN</span>
+  </div>
+  <div class="thumb" onclick="show(2)" tabindex="0" onkeydown="if(event.key==='Enter')show(2)" role="button" aria-label="Cathy, Lisa, Randy
+Xmas 1967" title="Cathy, Lisa, Randy
+Xmas 1967">
+    <img src="thumbs/20240407_155757.jpg" alt="Cathy, Lisa, Randy
+Xmas 1967" loading="lazy">
+    <span class="thumb-caption">Cathy, Lisa, Randy
+Xmas 1967</span>
+  </div>
+  <div class="thumb" onclick="show(3)" tabindex="0" onkeydown="if(event.key==='Enter')show(3)" role="button" aria-label="Randy, Cathy, Lisa
+Xmas 1967" title="Randy, Cathy, Lisa
+Xmas 1967">
+    <img src="thumbs/20240407_155834.jpg" alt="Randy, Cathy, Lisa
+Xmas 1967" loading="lazy">
+    <span class="thumb-caption">Randy, Cathy, Lisa
+Xmas 1967</span>
+  </div>
+  <div class="thumb" onclick="show(4)" tabindex="0" onkeydown="if(event.key==='Enter')show(4)" role="button" aria-label="Cathy, Lisa, Jen, Randy
+Bluefin Cir., Indianapolis" title="Cathy, Lisa, Jen, Randy
+Bluefin Cir., Indianapolis">
+    <img src="thumbs/20240407_155900.jpg" alt="Cathy, Lisa, Jen, Randy
+Bluefin Cir., Indianapolis" loading="lazy">
+    <span class="thumb-caption">Cathy, Lisa, Jen, Randy
+Bluefin Cir., Indianapolis</span>
+  </div>
+  <div class="thumb" onclick="show(5)" tabindex="0" onkeydown="if(event.key==='Enter')show(5)" role="button" aria-label="Cathy, Lisa, Jen, Randy
+Bluefin Cir., Indianapolis" title="Cathy, Lisa, Jen, Randy
+Bluefin Cir., Indianapolis">
+    <img src="thumbs/20240407_155914.jpg" alt="Cathy, Lisa, Jen, Randy
+Bluefin Cir., Indianapolis" loading="lazy">
+    <span class="thumb-caption">Cathy, Lisa, Jen, Randy
+Bluefin Cir., Indianapolis</span>
+  </div>
+  <div class="thumb" onclick="show(6)" tabindex="0" onkeydown="if(event.key==='Enter')show(6)" role="button" aria-label="Cathy, Lisa, Jen, Randy
+Bluefin Cir., Indianapolis" title="Cathy, Lisa, Jen, Randy
+Bluefin Cir., Indianapolis">
+    <img src="thumbs/20240407_155926.jpg" alt="Cathy, Lisa, Jen, Randy
+Bluefin Cir., Indianapolis" loading="lazy">
+    <span class="thumb-caption">Cathy, Lisa, Jen, Randy
+Bluefin Cir., Indianapolis</span>
+  </div>
+  <div class="thumb" onclick="show(7)" tabindex="0" onkeydown="if(event.key==='Enter')show(7)" role="button" aria-label="Cathy, Lisa, Geneva, Randy, Jen
+Bluefin Cir., Indianapolis" title="Cathy, Lisa, Geneva, Randy, Jen
+Bluefin Cir., Indianapolis">
+    <img src="thumbs/20240407_155953.jpg" alt="Cathy, Lisa, Geneva, Randy, Jen
+Bluefin Cir., Indianapolis" loading="lazy">
+    <span class="thumb-caption">Cathy, Lisa, Geneva, Randy, Jen
+Bluefin Cir., Indianapolis</span>
+  </div>
+  <div class="thumb" onclick="show(8)" tabindex="0" onkeydown="if(event.key==='Enter')show(8)" role="button" aria-label="Cathy, Lisa, Geneva, Randy, Jen
+Bluefin Cir., Indianapolis" title="Cathy, Lisa, Geneva, Randy, Jen
+Bluefin Cir., Indianapolis">
+    <img src="thumbs/20240407_160055.jpg" alt="Cathy, Lisa, Geneva, Randy, Jen
+Bluefin Cir., Indianapolis" loading="lazy">
+    <span class="thumb-caption">Cathy, Lisa, Geneva, Randy, Jen
+Bluefin Cir., Indianapolis</span>
+  </div>
+  <div class="thumb" onclick="show(9)" tabindex="0" onkeydown="if(event.key==='Enter')show(9)" role="button" aria-label="Cathy, Lisa, Geneva, Randy, Jen
+Bluefin Cir., Indianapolis" title="Cathy, Lisa, Geneva, Randy, Jen
+Bluefin Cir., Indianapolis">
+    <img src="thumbs/20240407_160102.jpg" alt="Cathy, Lisa, Geneva, Randy, Jen
+Bluefin Cir., Indianapolis" loading="lazy">
+    <span class="thumb-caption">Cathy, Lisa, Geneva, Randy, Jen
+Bluefin Cir., Indianapolis</span>
+  </div>
+  <div class="thumb" onclick="show(10)" tabindex="0" onkeydown="if(event.key==='Enter')show(10)" role="button" aria-label="Aunt Cindy, Cathy, Randy
+Lisa" title="Aunt Cindy, Cathy, Randy
+Lisa">
+    <img src="thumbs/20240407_160157.jpg" alt="Aunt Cindy, Cathy, Randy
+Lisa" loading="lazy">
+    <span class="thumb-caption">Aunt Cindy, Cathy, Randy
+Lisa</span>
+  </div>
+  <div class="thumb" onclick="show(11)" tabindex="0" onkeydown="if(event.key==='Enter')show(11)" role="button" aria-label="Cathy, Tigon, Jen, Randy
+Jim &amp; Nancy&#x27;s 40th anniversary
+Bluefin Cir., Indianapolis" title="Cathy, Tigon, Jen, Randy
+Jim &amp; Nancy&#x27;s 40th anniversary
+Bluefin Cir., Indianapolis">
+    <img src="thumbs/20240407_160313.jpg" alt="Cathy, Tigon, Jen, Randy
+Jim &amp; Nancy&#x27;s 40th anniversary
+Bluefin Cir., Indianapolis" loading="lazy">
+    <span class="thumb-caption">Cathy, Tigon, Jen, Randy
+Jim &amp; Nancy&#x27;s 40th anniversary
+Bluefin Cir., Indianapolis</span>
+  </div>
+  <div class="thumb" onclick="show(12)" tabindex="0" onkeydown="if(event.key==='Enter')show(12)" role="button" aria-label="Grandma Wilson, Aunt Gladys, Uncle Hub Wilson (white coat)" title="Grandma Wilson, Aunt Gladys, Uncle Hub Wilson (white coat)">
+    <img src="thumbs/20240407_160418.jpg" alt="Grandma Wilson, Aunt Gladys, Uncle Hub Wilson (white coat)" loading="lazy">
+    <span class="thumb-caption">Grandma Wilson, Aunt Gladys, Uncle Hub Wilson (white coat)</span>
+  </div>
+  <div class="thumb" onclick="show(13)" tabindex="0" onkeydown="if(event.key==='Enter')show(13)" role="button" aria-label="Grandma Wilson, Aunt Gladys, Uncle Hub Wilson (white coat)" title="Grandma Wilson, Aunt Gladys, Uncle Hub Wilson (white coat)">
+    <img src="thumbs/20240407_160422-save.jpg" alt="Grandma Wilson, Aunt Gladys, Uncle Hub Wilson (white coat)" loading="lazy">
+    <span class="thumb-caption">Grandma Wilson, Aunt Gladys, Uncle Hub Wilson (white coat)</span>
+  </div>
+  <div class="thumb" onclick="show(14)" tabindex="0" onkeydown="if(event.key==='Enter')show(14)" role="button" aria-label="Grandma Wilson, Aunt Gladys, Uncle Hub Wilson (white coat)" title="Grandma Wilson, Aunt Gladys, Uncle Hub Wilson (white coat)">
+    <img src="thumbs/20240407_160422.jpg" alt="Grandma Wilson, Aunt Gladys, Uncle Hub Wilson (white coat)" loading="lazy">
+    <span class="thumb-caption">Grandma Wilson, Aunt Gladys, Uncle Hub Wilson (white coat)</span>
+  </div>
+  <div class="thumb" onclick="show(15)" tabindex="0" onkeydown="if(event.key==='Enter')show(15)" role="button" aria-label="Lisa, Cathy, Randy
+First day of school 1970
+Gushaw Dr., W. Lafayette, IN" title="Lisa, Cathy, Randy
+First day of school 1970
+Gushaw Dr., W. Lafayette, IN">
+    <img src="thumbs/20240407_160858.jpg" alt="Lisa, Cathy, Randy
+First day of school 1970
+Gushaw Dr., W. Lafayette, IN" loading="lazy">
+    <span class="thumb-caption">Lisa, Cathy, Randy
+First day of school 1970
+Gushaw Dr., W. Lafayette, IN</span>
+  </div>
+  <div class="thumb" onclick="show(16)" tabindex="0" onkeydown="if(event.key==='Enter')show(16)" role="button" aria-label="Lisa, Cathy, Randy
+First day of school 1970
+Gushaw Dr., W. Lafayette, IN" title="Lisa, Cathy, Randy
+First day of school 1970
+Gushaw Dr., W. Lafayette, IN">
+    <img src="thumbs/20240407_160900.jpg" alt="Lisa, Cathy, Randy
+First day of school 1970
+Gushaw Dr., W. Lafayette, IN" loading="lazy">
+    <span class="thumb-caption">Lisa, Cathy, Randy
+First day of school 1970
+Gushaw Dr., W. Lafayette, IN</span>
+  </div>
+  <div class="thumb" onclick="show(17)" tabindex="0" onkeydown="if(event.key==='Enter')show(17)" role="button" aria-label="Xmas at Lewis &amp; Lula&#x27;s" title="Xmas at Lewis &amp; Lula&#x27;s">
+    <img src="thumbs/20240407_160929.jpg" alt="Xmas at Lewis &amp; Lula&#x27;s" loading="lazy">
+    <span class="thumb-caption">Xmas at Lewis &amp; Lula&#x27;s</span>
+  </div>
+  <div class="thumb" onclick="show(18)" tabindex="0" onkeydown="if(event.key==='Enter')show(18)" role="button" aria-label="Cathy, Lisa, Randy
+Thanksgiving 1967
+Gushaw Dr., W. Lafayette, IN" title="Cathy, Lisa, Randy
+Thanksgiving 1967
+Gushaw Dr., W. Lafayette, IN">
+    <img src="thumbs/20240407_161005.jpg" alt="Cathy, Lisa, Randy
+Thanksgiving 1967
+Gushaw Dr., W. Lafayette, IN" loading="lazy">
+    <span class="thumb-caption">Cathy, Lisa, Randy
+Thanksgiving 1967
+Gushaw Dr., W. Lafayette, IN</span>
+  </div>
+  <div class="thumb" onclick="show(19)" tabindex="0" onkeydown="if(event.key==='Enter')show(19)" role="button" aria-label="Lisa, Randy, Pokey, Cathy
+September 1969
+Gushaw Dr., W. Lafayette, IN" title="Lisa, Randy, Pokey, Cathy
+September 1969
+Gushaw Dr., W. Lafayette, IN">
+    <img src="thumbs/20240407_161217.jpg" alt="Lisa, Randy, Pokey, Cathy
+September 1969
+Gushaw Dr., W. Lafayette, IN" loading="lazy">
+    <span class="thumb-caption">Lisa, Randy, Pokey, Cathy
+September 1969
+Gushaw Dr., W. Lafayette, IN</span>
+  </div>
+  <div class="thumb" onclick="show(20)" tabindex="0" onkeydown="if(event.key==='Enter')show(20)" role="button" aria-label="Lisa, Randy, Cathy
+4818 Hawthorne Ridge Dr. W. Lafayette, IN" title="Lisa, Randy, Cathy
+4818 Hawthorne Ridge Dr. W. Lafayette, IN">
+    <img src="thumbs/20240407_161907.jpg" alt="Lisa, Randy, Cathy
+4818 Hawthorne Ridge Dr. W. Lafayette, IN" loading="lazy">
+    <span class="thumb-caption">Lisa, Randy, Cathy
+4818 Hawthorne Ridge Dr. W. Lafayette, IN</span>
+  </div>
+  <div class="thumb" onclick="show(21)" tabindex="0" onkeydown="if(event.key==='Enter')show(21)" role="button" aria-label="25 yrs @ IBM
+Nancy  Jim  Ron Greek" title="25 yrs @ IBM
+Nancy  Jim  Ron Greek">
+    <img src="thumbs/25 years at IBM.jpg" alt="25 yrs @ IBM
+Nancy  Jim  Ron Greek" loading="lazy">
+    <span class="thumb-caption">25 yrs @ IBM
+Nancy  Jim  Ron Greek</span>
+  </div>
+  <div class="thumb" onclick="show(22)" tabindex="0" onkeydown="if(event.key==='Enter')show(22)" role="button" aria-label="College graduation
+May 1961" title="College graduation
+May 1961">
+    <img src="thumbs/College graduation May 1961.jpg" alt="College graduation
+May 1961" loading="lazy">
+    <span class="thumb-caption">College graduation
+May 1961</span>
+  </div>
+  <div class="thumb" onclick="show(23)" tabindex="0" onkeydown="if(event.key==='Enter')show(23)" role="button" aria-label="Columbian Park Zoo Monkey Island
+Lafayette, IN" title="Columbian Park Zoo Monkey Island
+Lafayette, IN">
+    <img src="thumbs/Columbian Park Monkey Island.jpg" alt="Columbian Park Zoo Monkey Island
+Lafayette, IN" loading="lazy">
+    <span class="thumb-caption">Columbian Park Zoo Monkey Island
+Lafayette, IN</span>
+  </div>
+  <div class="thumb" onclick="show(24)" tabindex="0" onkeydown="if(event.key==='Enter')show(24)" role="button" aria-label="Columbian Park
+Lafayette, IN" title="Columbian Park
+Lafayette, IN">
+    <img src="thumbs/Columbian Park.jpg" alt="Columbian Park
+Lafayette, IN" loading="lazy">
+    <span class="thumb-caption">Columbian Park
+Lafayette, IN</span>
+  </div>
+  <div class="thumb" onclick="show(25)" tabindex="0" onkeydown="if(event.key==='Enter')show(25)" role="button" aria-label="Lisa, Grandpa Wilson, Jen
+Hawthorne Ridge, W. Lafayette, IN" title="Lisa, Grandpa Wilson, Jen
+Hawthorne Ridge, W. Lafayette, IN">
+    <img src="thumbs/IMG_20170126_104710_880.jpg" alt="Lisa, Grandpa Wilson, Jen
+Hawthorne Ridge, W. Lafayette, IN" loading="lazy">
+    <span class="thumb-caption">Lisa, Grandpa Wilson, Jen
+Hawthorne Ridge, W. Lafayette, IN</span>
+  </div>
+  <div class="thumb" onclick="show(26)" tabindex="0" onkeydown="if(event.key==='Enter')show(26)" role="button" aria-label="Jim Cole
+4th Grade
+Pence Grade School" title="Jim Cole
+4th Grade
+Pence Grade School">
+    <img src="thumbs/Jim 4th grade pence.jpg" alt="Jim Cole
+4th Grade
+Pence Grade School" loading="lazy">
+    <span class="thumb-caption">Jim Cole
+4th Grade
+Pence Grade School</span>
+  </div>
+  <div class="thumb" onclick="show(27)" tabindex="0" onkeydown="if(event.key==='Enter')show(27)" role="button" aria-label="Lisa, Randy, Cathy
+&quot;Knotheads&#x27;
+March 1966
+Gushwa Dr, Lafayette, IN" title="Lisa, Randy, Cathy
+&quot;Knotheads&#x27;
+March 1966
+Gushwa Dr, Lafayette, IN">
+    <img src="thumbs/Knotheads.jpg" alt="Lisa, Randy, Cathy
+&quot;Knotheads&#x27;
+March 1966
+Gushwa Dr, Lafayette, IN" loading="lazy">
+    <span class="thumb-caption">Lisa, Randy, Cathy
+&quot;Knotheads&#x27;
+March 1966
+Gushwa Dr, Lafayette, IN</span>
+  </div>
+  <div class="thumb" onclick="show(28)" tabindex="0" onkeydown="if(event.key==='Enter')show(28)" role="button" aria-label="Lula Cole" title="Lula Cole">
+    <img src="thumbs/Lula Cole.jpg" alt="Lula Cole" loading="lazy">
+    <span class="thumb-caption">Lula Cole</span>
+  </div>
+  <div class="thumb" onclick="show(29)" tabindex="0" onkeydown="if(event.key==='Enter')show(29)" role="button" aria-label="Nancy Wilson
+May 1953" title="Nancy Wilson
+May 1953">
+    <img src="thumbs/May 1953.jpg" alt="Nancy Wilson
+May 1953" loading="lazy">
+    <span class="thumb-caption">Nancy Wilson
+May 1953</span>
+  </div>
+  <div class="thumb" onclick="show(30)" tabindex="0" onkeydown="if(event.key==='Enter')show(30)" role="button" aria-label="Jim, Cathy, Nancy, Randy Cole
+May 61" title="Jim, Cathy, Nancy, Randy Cole
+May 61">
+    <img src="thumbs/May 1961.jpg" alt="Jim, Cathy, Nancy, Randy Cole
+May 61" loading="lazy">
+    <span class="thumb-caption">Jim, Cathy, Nancy, Randy Cole
+May 61</span>
+  </div>
+  <div class="thumb" onclick="show(31)" tabindex="0" onkeydown="if(event.key==='Enter')show(31)" role="button" aria-label="4818 Hawthorne Ridge Dr. W. Lafayette, IN" title="4818 Hawthorne Ridge Dr. W. Lafayette, IN">
+    <img src="thumbs/Scan2025-04-07_191832.jpg" alt="4818 Hawthorne Ridge Dr. W. Lafayette, IN" loading="lazy">
+    <span class="thumb-caption">4818 Hawthorne Ridge Dr. W. Lafayette, IN</span>
+  </div>
+  <div class="thumb" onclick="show(32)" tabindex="0" onkeydown="if(event.key==='Enter')show(32)" role="button" aria-label="Kenny B. and Geneva Wilson
+Hawthorne Ridge Rd., W. Lafayette, IN" title="Kenny B. and Geneva Wilson
+Hawthorne Ridge Rd., W. Lafayette, IN">
+    <img src="thumbs/Scan2025-04-07_192257.jpg" alt="Kenny B. and Geneva Wilson
+Hawthorne Ridge Rd., W. Lafayette, IN" loading="lazy">
+    <span class="thumb-caption">Kenny B. and Geneva Wilson
+Hawthorne Ridge Rd., W. Lafayette, IN</span>
+  </div>
+  <div class="thumb" onclick="show(33)" tabindex="0" onkeydown="if(event.key==='Enter')show(33)" role="button" aria-label="Kenny B. Wilson
+His house, Williamsport, IN." title="Kenny B. Wilson
+His house, Williamsport, IN.">
+    <img src="thumbs/Scan2025-04-07_192345.jpg" alt="Kenny B. Wilson
+His house, Williamsport, IN." loading="lazy">
+    <span class="thumb-caption">Kenny B. Wilson
+His house, Williamsport, IN.</span>
+  </div>
+  <div class="thumb" onclick="show(34)" tabindex="0" onkeydown="if(event.key==='Enter')show(34)" role="button" aria-label="Geneva Wilson
+Bluefin Cir., Indianapolis, IN" title="Geneva Wilson
+Bluefin Cir., Indianapolis, IN">
+    <img src="thumbs/Scan2025-04-07_192416.jpg" alt="Geneva Wilson
+Bluefin Cir., Indianapolis, IN" loading="lazy">
+    <span class="thumb-caption">Geneva Wilson
+Bluefin Cir., Indianapolis, IN</span>
+  </div>
+  <div class="thumb" onclick="show(35)" tabindex="0" onkeydown="if(event.key==='Enter')show(35)" role="button" aria-label="Black Bear &quot;Mounted&quot;
+I shot this bean in Canada
+
+Lataer, I gave bear to Randy. He was living in a cabin in Pennsylvania at the time. he mounted the bear on the wall in the cabin. It was later destroyed by mites.
+
+Jim Cole" title="Black Bear &quot;Mounted&quot;
+I shot this bean in Canada
+
+Lataer, I gave bear to Randy. He was living in a cabin in Pennsylvania at the time. he mounted the bear on the wall in the cabin. It was later destroyed by mites.
+
+Jim Cole">
+    <img src="thumbs/Scan2025-04-07_192508.jpg" alt="Black Bear &quot;Mounted&quot;
+I shot this bean in Canada
+
+Lataer, I gave bear to Randy. He was living in a cabin in Pennsylvania at the time. he mounted the bear on the wall in the cabin. It was later destroyed by mites.
+
+Jim Cole" loading="lazy">
+    <span class="thumb-caption">Black Bear &quot;Mounted&quot;
+I shot this bean in Canada
+
+Lataer, I gave bear to Randy. He was living in a cabin in Pennsylvania at the time. he mounted the bear on the wall in the cabin. It was later destroyed by mites.
+
+Jim Cole</span>
+  </div>
+  <div class="thumb" onclick="show(36)" tabindex="0" onkeydown="if(event.key==='Enter')show(36)" role="button" aria-label="Kenny B. &amp; Geneva Wilson
+Williamsport, IN" title="Kenny B. &amp; Geneva Wilson
+Williamsport, IN">
+    <img src="thumbs/Scan2025-04-07_192541.jpg" alt="Kenny B. &amp; Geneva Wilson
+Williamsport, IN" loading="lazy">
+    <span class="thumb-caption">Kenny B. &amp; Geneva Wilson
+Williamsport, IN</span>
+  </div>
+  <div class="thumb" onclick="show(37)" tabindex="0" onkeydown="if(event.key==='Enter')show(37)" role="button" aria-label="Kenny B Wilson
+Don Wilson
+Peg Kennedy Wilson" title="Kenny B Wilson
+Don Wilson
+Peg Kennedy Wilson">
+    <img src="thumbs/Scan2025-04-07_192701.jpg" alt="Kenny B Wilson
+Don Wilson
+Peg Kennedy Wilson" loading="lazy">
+    <span class="thumb-caption">Kenny B Wilson
+Don Wilson
+Peg Kennedy Wilson</span>
+  </div>
+  <div class="thumb" onclick="show(38)" tabindex="0" onkeydown="if(event.key==='Enter')show(38)" role="button" aria-label="Lewis Cole and Puff" title="Lewis Cole and Puff">
+    <img src="thumbs/Scan2025-04-07_192752.jpg" alt="Lewis Cole and Puff" loading="lazy">
+    <span class="thumb-caption">Lewis Cole and Puff</span>
+  </div>
+  <div class="thumb" onclick="show(39)" tabindex="0" onkeydown="if(event.key==='Enter')show(39)" role="button" aria-label="Lewis &amp; Lula Cole
+1959" title="Lewis &amp; Lula Cole
+1959">
+    <img src="thumbs/Scan2025-04-07_192833.jpg" alt="Lewis &amp; Lula Cole
+1959" loading="lazy">
+    <span class="thumb-caption">Lewis &amp; Lula Cole
+1959</span>
+  </div>
+  <div class="thumb" onclick="show(40)" tabindex="0" onkeydown="if(event.key==='Enter')show(40)" role="button" aria-label="Jen, Lisa, Cathy, Lewis Cole" title="Jen, Lisa, Cathy, Lewis Cole">
+    <img src="thumbs/Scan2025-04-07_192914.jpg" alt="Jen, Lisa, Cathy, Lewis Cole" loading="lazy">
+    <span class="thumb-caption">Jen, Lisa, Cathy, Lewis Cole</span>
+  </div>
+  <div class="thumb" onclick="show(41)" tabindex="0" onkeydown="if(event.key==='Enter')show(41)" role="button" aria-label="Geneva 1933" title="Geneva 1933">
+    <img src="thumbs/Scan2025-04-07_192947.jpg" alt="Geneva 1933" loading="lazy">
+    <span class="thumb-caption">Geneva 1933</span>
+  </div>
+  <div class="thumb" onclick="show(42)" tabindex="0" onkeydown="if(event.key==='Enter')show(42)" role="button" aria-label="Geneva" title="Geneva">
+    <img src="thumbs/Scan2025-04-07_193028.jpg" alt="Geneva" loading="lazy">
+    <span class="thumb-caption">Geneva</span>
+  </div>
+  <div class="thumb" onclick="show(43)" tabindex="0" onkeydown="if(event.key==='Enter')show(43)" role="button" aria-label="Smokey Mountains
+Late 1960s" title="Smokey Mountains
+Late 1960s">
+    <img src="thumbs/Scan2025-04-07_193056.jpg" alt="Smokey Mountains
+Late 1960s" loading="lazy">
+    <span class="thumb-caption">Smokey Mountains
+Late 1960s</span>
+  </div>
+  <div class="thumb" onclick="show(44)" tabindex="0" onkeydown="if(event.key==='Enter')show(44)" role="button" aria-label="Lula Cole
+At home, Williamsport, IN" title="Lula Cole
+At home, Williamsport, IN">
+    <img src="thumbs/Scan2025-04-07_193132.jpg" alt="Lula Cole
+At home, Williamsport, IN" loading="lazy">
+    <span class="thumb-caption">Lula Cole
+At home, Williamsport, IN</span>
+  </div>
+  <div class="thumb" onclick="show(45)" tabindex="0" onkeydown="if(event.key==='Enter')show(45)" role="button" aria-label="Geneva, Don, Nancy Wilson" title="Geneva, Don, Nancy Wilson">
+    <img src="thumbs/Scan2025-04-07_193222.jpg" alt="Geneva, Don, Nancy Wilson" loading="lazy">
+    <span class="thumb-caption">Geneva, Don, Nancy Wilson</span>
+  </div>
+  <div class="thumb" onclick="show(46)" tabindex="0" onkeydown="if(event.key==='Enter')show(46)" role="button" aria-label="Nancy Wilson" title="Nancy Wilson">
+    <img src="thumbs/Scan2025-04-07_193300.jpg" alt="Nancy Wilson" loading="lazy">
+    <span class="thumb-caption">Nancy Wilson</span>
+  </div>
+  <div class="thumb" onclick="show(47)" tabindex="0" onkeydown="if(event.key==='Enter')show(47)" role="button" aria-label="Hawthorne Ridge Rd. W. Lafayette, IN." title="Hawthorne Ridge Rd. W. Lafayette, IN.">
+    <img src="thumbs/Scan2025-04-07_193331.jpg" alt="Hawthorne Ridge Rd. W. Lafayette, IN." loading="lazy">
+    <span class="thumb-caption">Hawthorne Ridge Rd. W. Lafayette, IN.</span>
+  </div>
+  <div class="thumb" onclick="show(48)" tabindex="0" onkeydown="if(event.key==='Enter')show(48)" role="button" aria-label="Nancy Cole, Martha Haynes, Jo Cole
+Cole Farmstead, ~1970
+Williamsport, IN" title="Nancy Cole, Martha Haynes, Jo Cole
+Cole Farmstead, ~1970
+Williamsport, IN">
+    <img src="thumbs/Scan2025-04-07_193403.jpg" alt="Nancy Cole, Martha Haynes, Jo Cole
+Cole Farmstead, ~1970
+Williamsport, IN" loading="lazy">
+    <span class="thumb-caption">Nancy Cole, Martha Haynes, Jo Cole
+Cole Farmstead, ~1970
+Williamsport, IN</span>
+  </div>
+  <div class="thumb" onclick="show(49)" tabindex="0" onkeydown="if(event.key==='Enter')show(49)" role="button" aria-label="Aunt Cindy, Cathy, Randy
+Lisa
+~1964" title="Aunt Cindy, Cathy, Randy
+Lisa
+~1964">
+    <img src="thumbs/Scan2025-04-07_193447.jpg" alt="Aunt Cindy, Cathy, Randy
+Lisa
+~1964" loading="lazy">
+    <span class="thumb-caption">Aunt Cindy, Cathy, Randy
+Lisa
+~1964</span>
+  </div>
+  <div class="thumb" onclick="show(50)" tabindex="0" onkeydown="if(event.key==='Enter')show(50)" role="button" aria-label="Sweepstake Grand Champion Barrow of 1951 4-H fair
+Nancy Wilson" title="Sweepstake Grand Champion Barrow of 1951 4-H fair
+Nancy Wilson">
+    <img src="thumbs/Scan2025-04-07_193520.jpg" alt="Sweepstake Grand Champion Barrow of 1951 4-H fair
+Nancy Wilson" loading="lazy">
+    <span class="thumb-caption">Sweepstake Grand Champion Barrow of 1951 4-H fair
+Nancy Wilson</span>
+  </div>
+  <div class="thumb" onclick="show(51)" tabindex="0" onkeydown="if(event.key==='Enter')show(51)" role="button" aria-label="Jim and Nancy Cole
+1959" title="Jim and Nancy Cole
+1959">
+    <img src="thumbs/Scan2025-04-07_193559.jpg" alt="Jim and Nancy Cole
+1959" loading="lazy">
+    <span class="thumb-caption">Jim and Nancy Cole
+1959</span>
+  </div>
+  <div class="thumb" onclick="show(52)" tabindex="0" onkeydown="if(event.key==='Enter')show(52)" role="button" aria-label="Sweepstake Grand Champion Barrow of 1951 4-H fair
+Nancy Wilson" title="Sweepstake Grand Champion Barrow of 1951 4-H fair
+Nancy Wilson">
+    <img src="thumbs/Scan2025-04-07_193825.jpg" alt="Sweepstake Grand Champion Barrow of 1951 4-H fair
+Nancy Wilson" loading="lazy">
+    <span class="thumb-caption">Sweepstake Grand Champion Barrow of 1951 4-H fair
+Nancy Wilson</span>
+  </div>
+  <div class="thumb" onclick="show(53)" tabindex="0" onkeydown="if(event.key==='Enter')show(53)" role="button" aria-label="Nancy Wilson" title="Nancy Wilson">
+    <img src="thumbs/Scan2025-04-07_193910.jpg" alt="Nancy Wilson" loading="lazy">
+    <span class="thumb-caption">Nancy Wilson</span>
+  </div>
+  <div class="thumb" onclick="show(54)" tabindex="0" onkeydown="if(event.key==='Enter')show(54)" role="button" aria-label="Jim and Nancy Cole
+Jan. 1957" title="Jim and Nancy Cole
+Jan. 1957">
+    <img src="thumbs/Scan2025-04-07_193939.jpg" alt="Jim and Nancy Cole
+Jan. 1957" loading="lazy">
+    <span class="thumb-caption">Jim and Nancy Cole
+Jan. 1957</span>
+  </div>
+  <div class="thumb" onclick="show(55)" tabindex="0" onkeydown="if(event.key==='Enter')show(55)" role="button" aria-label="Jim
+Lois Trott
+Cole Farmstead, Williamsport, IN" title="Jim
+Lois Trott
+Cole Farmstead, Williamsport, IN">
+    <img src="thumbs/Scan2025-04-07_194012.jpg" alt="Jim
+Lois Trott
+Cole Farmstead, Williamsport, IN" loading="lazy">
+    <span class="thumb-caption">Jim
+Lois Trott
+Cole Farmstead, Williamsport, IN</span>
+  </div>
+  <div class="thumb" onclick="show(56)" tabindex="0" onkeydown="if(event.key==='Enter')show(56)" role="button" aria-label="Jim Cole, Tippy and Rasmussin
+At east lawn of the Cox place" title="Jim Cole, Tippy and Rasmussin
+At east lawn of the Cox place">
+    <img src="thumbs/Scan2025-04-07_194050.jpg" alt="Jim Cole, Tippy and Rasmussin
+At east lawn of the Cox place" loading="lazy">
+    <span class="thumb-caption">Jim Cole, Tippy and Rasmussin
+At east lawn of the Cox place</span>
+  </div>
+  <div class="thumb" onclick="show(57)" tabindex="0" onkeydown="if(event.key==='Enter')show(57)" role="button" aria-label="Dick Cole, Lewis Cole, Lula Cole, Jack Cole
+Jim Cole, Martha Cole Haynes" title="Dick Cole, Lewis Cole, Lula Cole, Jack Cole
+Jim Cole, Martha Cole Haynes">
+    <img src="thumbs/Scan2025-04-07_194121.jpg" alt="Dick Cole, Lewis Cole, Lula Cole, Jack Cole
+Jim Cole, Martha Cole Haynes" loading="lazy">
+    <span class="thumb-caption">Dick Cole, Lewis Cole, Lula Cole, Jack Cole
+Jim Cole, Martha Cole Haynes</span>
+  </div>
+  <div class="thumb" onclick="show(58)" tabindex="0" onkeydown="if(event.key==='Enter')show(58)" role="button" aria-label="Lewis Cole
+Jim Cole
+Early 1940&#x27;s at the Cox farm" title="Lewis Cole
+Jim Cole
+Early 1940&#x27;s at the Cox farm">
+    <img src="thumbs/Scan2025-04-07_194205.jpg" alt="Lewis Cole
+Jim Cole
+Early 1940&#x27;s at the Cox farm" loading="lazy">
+    <span class="thumb-caption">Lewis Cole
+Jim Cole
+Early 1940&#x27;s at the Cox farm</span>
+  </div>
+  <div class="thumb" onclick="show(59)" tabindex="0" onkeydown="if(event.key==='Enter')show(59)" role="button" aria-label="Jim Cole" title="Jim Cole">
+    <img src="thumbs/Scan2025-04-07_194238.jpg" alt="Jim Cole" loading="lazy">
+    <span class="thumb-caption">Jim Cole</span>
+  </div>
+  <div class="thumb" onclick="show(60)" tabindex="0" onkeydown="if(event.key==='Enter')show(60)" role="button" aria-label="Jim Cole checking up on a nest of baby birds, probably robins.
+Hawthorne Ridge Rd., W. Lafayette, IN
+~1985" title="Jim Cole checking up on a nest of baby birds, probably robins.
+Hawthorne Ridge Rd., W. Lafayette, IN
+~1985">
+    <img src="thumbs/Scan2025-04-07_194348.jpg" alt="Jim Cole checking up on a nest of baby birds, probably robins.
+Hawthorne Ridge Rd., W. Lafayette, IN
+~1985" loading="lazy">
+    <span class="thumb-caption">Jim Cole checking up on a nest of baby birds, probably robins.
+Hawthorne Ridge Rd., W. Lafayette, IN
+~1985</span>
+  </div>
+  <div class="thumb" onclick="show(61)" tabindex="0" onkeydown="if(event.key==='Enter')show(61)" role="button" aria-label="Jim Cole 1956" title="Jim Cole 1956">
+    <img src="thumbs/Scan2025-04-07_194416.jpg" alt="Jim Cole 1956" loading="lazy">
+    <span class="thumb-caption">Jim Cole 1956</span>
+  </div>
+  <div class="thumb" onclick="show(62)" tabindex="0" onkeydown="if(event.key==='Enter')show(62)" role="button" aria-label="Jim &amp; his black bear at campsite about 20 miles north of Blind River, Canada." title="Jim &amp; his black bear at campsite about 20 miles north of Blind River, Canada.">
+    <img src="thumbs/Scan2025-04-07_194451.jpg" alt="Jim &amp; his black bear at campsite about 20 miles north of Blind River, Canada." loading="lazy">
+    <span class="thumb-caption">Jim &amp; his black bear at campsite about 20 miles north of Blind River, Canada.</span>
+  </div>
+  <div class="thumb" onclick="show(63)" tabindex="0" onkeydown="if(event.key==='Enter')show(63)" role="button" aria-label="Jim Cole
+Hawthorne Ridge Dr., W. Lafayette, IN." title="Jim Cole
+Hawthorne Ridge Dr., W. Lafayette, IN.">
+    <img src="thumbs/Scan2025-04-07_194523.jpg" alt="Jim Cole
+Hawthorne Ridge Dr., W. Lafayette, IN." loading="lazy">
+    <span class="thumb-caption">Jim Cole
+Hawthorne Ridge Dr., W. Lafayette, IN.</span>
+  </div>
+  <div class="thumb" onclick="show(64)" tabindex="0" onkeydown="if(event.key==='Enter')show(64)" role="button" aria-label="Jim Cole
+Judyville School" title="Jim Cole
+Judyville School">
+    <img src="thumbs/Scan2025-04-07_194554.jpg" alt="Jim Cole
+Judyville School" loading="lazy">
+    <span class="thumb-caption">Jim Cole
+Judyville School</span>
+  </div>
+  <div class="thumb" onclick="show(65)" tabindex="0" onkeydown="if(event.key==='Enter')show(65)" role="button" aria-label="Black bear, killed in woods approximately 15 miles north of Blind River, Ontario" title="Black bear, killed in woods approximately 15 miles north of Blind River, Ontario">
+    <img src="thumbs/Scan2025-04-07_194631.jpg" alt="Black bear, killed in woods approximately 15 miles north of Blind River, Ontario" loading="lazy">
+    <span class="thumb-caption">Black bear, killed in woods approximately 15 miles north of Blind River, Ontario</span>
+  </div>
+  <div class="thumb" onclick="show(66)" tabindex="0" onkeydown="if(event.key==='Enter')show(66)" role="button" aria-label="Jim Cole
+Hawthorne Ridge Dr., W. Lafayette, IN" title="Jim Cole
+Hawthorne Ridge Dr., W. Lafayette, IN">
+    <img src="thumbs/Scan2025-04-07_194756.jpg" alt="Jim Cole
+Hawthorne Ridge Dr., W. Lafayette, IN" loading="lazy">
+    <span class="thumb-caption">Jim Cole
+Hawthorne Ridge Dr., W. Lafayette, IN</span>
+  </div>
+  <div class="thumb" onclick="show(67)" tabindex="0" onkeydown="if(event.key==='Enter')show(67)" role="button" aria-label="Cathy, Lisa, Geneva, Nancy
+Bluefin Cir., Indianapolis" title="Cathy, Lisa, Geneva, Nancy
+Bluefin Cir., Indianapolis">
+    <img src="thumbs/Scan2025-04-07_194825.jpg" alt="Cathy, Lisa, Geneva, Nancy
+Bluefin Cir., Indianapolis" loading="lazy">
+    <span class="thumb-caption">Cathy, Lisa, Geneva, Nancy
+Bluefin Cir., Indianapolis</span>
+  </div>
+  <div class="thumb" onclick="show(68)" tabindex="0" onkeydown="if(event.key==='Enter')show(68)" role="button" aria-label="Senior Year, 1956-1957 at Williamsport High.
+Avg. 17 PPG." title="Senior Year, 1956-1957 at Williamsport High.
+Avg. 17 PPG.">
+    <img src="thumbs/Scan2025-04-07_194855.jpg" alt="Senior Year, 1956-1957 at Williamsport High.
+Avg. 17 PPG." loading="lazy">
+    <span class="thumb-caption">Senior Year, 1956-1957 at Williamsport High.
+Avg. 17 PPG.</span>
+  </div>
+  <div class="thumb" onclick="show(69)" tabindex="0" onkeydown="if(event.key==='Enter')show(69)" role="button" aria-label="Mark
+Randy, Jim
+Mike, Lisa, Jen, Tigon, Nancy, Lyle
+Cathy, Ian
+Hawthorne Ridge Dr. W. Lafayette, IN
+~1988" title="Mark
+Randy, Jim
+Mike, Lisa, Jen, Tigon, Nancy, Lyle
+Cathy, Ian
+Hawthorne Ridge Dr. W. Lafayette, IN
+~1988">
+    <img src="thumbs/Scan2025-04-07_194924.jpg" alt="Mark
+Randy, Jim
+Mike, Lisa, Jen, Tigon, Nancy, Lyle
+Cathy, Ian
+Hawthorne Ridge Dr. W. Lafayette, IN
+~1988" loading="lazy">
+    <span class="thumb-caption">Mark
+Randy, Jim
+Mike, Lisa, Jen, Tigon, Nancy, Lyle
+Cathy, Ian
+Hawthorne Ridge Dr. W. Lafayette, IN
+~1988</span>
+  </div>
+  <div class="thumb" onclick="show(70)" tabindex="0" onkeydown="if(event.key==='Enter')show(70)" role="button" aria-label="Nancy Wilson" title="Nancy Wilson">
+    <img src="thumbs/Scan2025-04-07_195039.jpg" alt="Nancy Wilson" loading="lazy">
+    <span class="thumb-caption">Nancy Wilson</span>
+  </div>
+  <div class="thumb" onclick="show(71)" tabindex="0" onkeydown="if(event.key==='Enter')show(71)" role="button" aria-label="Randy, Cathy, Jim, Lisa
+1968 Lincoln&#x27;s Birthplace" title="Randy, Cathy, Jim, Lisa
+1968 Lincoln&#x27;s Birthplace">
+    <img src="thumbs/Scan2025-04-07_195108.jpg" alt="Randy, Cathy, Jim, Lisa
+1968 Lincoln&#x27;s Birthplace" loading="lazy">
+    <span class="thumb-caption">Randy, Cathy, Jim, Lisa
+1968 Lincoln&#x27;s Birthplace</span>
+  </div>
+  <div class="thumb" onclick="show(72)" tabindex="0" onkeydown="if(event.key==='Enter')show(72)" role="button" aria-label="Randy, Lisa, Cathy, Jim
+Washington, D.C. 1967" title="Randy, Lisa, Cathy, Jim
+Washington, D.C. 1967">
+    <img src="thumbs/Scan2025-04-07_195141.jpg" alt="Randy, Lisa, Cathy, Jim
+Washington, D.C. 1967" loading="lazy">
+    <span class="thumb-caption">Randy, Lisa, Cathy, Jim
+Washington, D.C. 1967</span>
+  </div>
+  <div class="thumb" onclick="show(73)" tabindex="0" onkeydown="if(event.key==='Enter')show(73)" role="button" aria-label="Cathy, Randy, Lisa, Jim
+Lincoln Memorial 1967" title="Cathy, Randy, Lisa, Jim
+Lincoln Memorial 1967">
+    <img src="thumbs/Scan2025-04-07_195211.jpg" alt="Cathy, Randy, Lisa, Jim
+Lincoln Memorial 1967" loading="lazy">
+    <span class="thumb-caption">Cathy, Randy, Lisa, Jim
+Lincoln Memorial 1967</span>
+  </div>
+  <div class="thumb" onclick="show(74)" tabindex="0" onkeydown="if(event.key==='Enter')show(74)" role="button" aria-label="Randy, Cathy, Lisa
+1968" title="Randy, Cathy, Lisa
+1968">
+    <img src="thumbs/Scan2025-04-07_195239.jpg" alt="Randy, Cathy, Lisa
+1968" loading="lazy">
+    <span class="thumb-caption">Randy, Cathy, Lisa
+1968</span>
+  </div>
+  <div class="thumb" onclick="show(75)" tabindex="0" onkeydown="if(event.key==='Enter')show(75)" role="button" aria-label="Cathy, Lisa, Randy
+St. Louis Zoo
+August 1968" title="Cathy, Lisa, Randy
+St. Louis Zoo
+August 1968">
+    <img src="thumbs/Scan2025-04-07_195307.jpg" alt="Cathy, Lisa, Randy
+St. Louis Zoo
+August 1968" loading="lazy">
+    <span class="thumb-caption">Cathy, Lisa, Randy
+St. Louis Zoo
+August 1968</span>
+  </div>
+  <div class="thumb" onclick="show(76)" tabindex="0" onkeydown="if(event.key==='Enter')show(76)" role="button" aria-label="Randy, Lisa, Cathy
+Aug. 1968" title="Randy, Lisa, Cathy
+Aug. 1968">
+    <img src="thumbs/Scan2025-04-07_195336.jpg" alt="Randy, Lisa, Cathy
+Aug. 1968" loading="lazy">
+    <span class="thumb-caption">Randy, Lisa, Cathy
+Aug. 1968</span>
+  </div>
+  <div class="thumb" onclick="show(77)" tabindex="0" onkeydown="if(event.key==='Enter')show(77)" role="button" aria-label="Randy, Cathy, Lisa
+Gushwa, Lafayette, IN" title="Randy, Cathy, Lisa
+Gushwa, Lafayette, IN">
+    <img src="thumbs/Scan2025-04-07_195458.jpg" alt="Randy, Cathy, Lisa
+Gushwa, Lafayette, IN" loading="lazy">
+    <span class="thumb-caption">Randy, Cathy, Lisa
+Gushwa, Lafayette, IN</span>
+  </div>
+  <div class="thumb" onclick="show(78)" tabindex="0" onkeydown="if(event.key==='Enter')show(78)" role="button" aria-label="Lisa, Randy, Cathy
+Gettysburg Penn.
+Aug. 1969" title="Lisa, Randy, Cathy
+Gettysburg Penn.
+Aug. 1969">
+    <img src="thumbs/Scan2025-04-07_195527.jpg" alt="Lisa, Randy, Cathy
+Gettysburg Penn.
+Aug. 1969" loading="lazy">
+    <span class="thumb-caption">Lisa, Randy, Cathy
+Gettysburg Penn.
+Aug. 1969</span>
+  </div>
+  <div class="thumb" onclick="show(79)" tabindex="0" onkeydown="if(event.key==='Enter')show(79)" role="button" aria-label="Cathy, Lisa, Randy
+Christma 1965
+Gushwa, W. Lafayette, IN" title="Cathy, Lisa, Randy
+Christma 1965
+Gushwa, W. Lafayette, IN">
+    <img src="thumbs/Scan2025-04-07_195609.jpg" alt="Cathy, Lisa, Randy
+Christma 1965
+Gushwa, W. Lafayette, IN" loading="lazy">
+    <span class="thumb-caption">Cathy, Lisa, Randy
+Christma 1965
+Gushwa, W. Lafayette, IN</span>
+  </div>
+  <div class="thumb" onclick="show(80)" tabindex="0" onkeydown="if(event.key==='Enter')show(80)" role="button" aria-label="Cathy 
+Randy
+1967" title="Cathy 
+Randy
+1967">
+    <img src="thumbs/Scan2025-04-07_195643.jpg" alt="Cathy 
+Randy
+1967" loading="lazy">
+    <span class="thumb-caption">Cathy 
+Randy
+1967</span>
+  </div>
+  <div class="thumb" onclick="show(81)" tabindex="0" onkeydown="if(event.key==='Enter')show(81)" role="button" aria-label="Lisa, Cathy, Randy
+May 1964" title="Lisa, Cathy, Randy
+May 1964">
+    <img src="thumbs/Scan2025-04-07_195712.jpg" alt="Lisa, Cathy, Randy
+May 1964" loading="lazy">
+    <span class="thumb-caption">Lisa, Cathy, Randy
+May 1964</span>
+  </div>
+  <div class="thumb" onclick="show(82)" tabindex="0" onkeydown="if(event.key==='Enter')show(82)" role="button" aria-label="Cathy, Randy, Lisa
+Christmas 1966" title="Cathy, Randy, Lisa
+Christmas 1966">
+    <img src="thumbs/Scan2025-04-07_195742.jpg" alt="Cathy, Randy, Lisa
+Christmas 1966" loading="lazy">
+    <span class="thumb-caption">Cathy, Randy, Lisa
+Christmas 1966</span>
+  </div>
+  <div class="thumb" onclick="show(83)" tabindex="0" onkeydown="if(event.key==='Enter')show(83)" role="button" aria-label="Randy, Lisa, Cathy
+Hyde Park, Poughkeepsie, N.Y. 1967" title="Randy, Lisa, Cathy
+Hyde Park, Poughkeepsie, N.Y. 1967">
+    <img src="thumbs/Scan2025-04-07_195812.jpg" alt="Randy, Lisa, Cathy
+Hyde Park, Poughkeepsie, N.Y. 1967" loading="lazy">
+    <span class="thumb-caption">Randy, Lisa, Cathy
+Hyde Park, Poughkeepsie, N.Y. 1967</span>
+  </div>
+  <div class="thumb" onclick="show(84)" tabindex="0" onkeydown="if(event.key==='Enter')show(84)" role="button" aria-label="Lisa, Randy, Cathy
+Oct. 1968
+Gushwa, W. Lafayette, IN" title="Lisa, Randy, Cathy
+Oct. 1968
+Gushwa, W. Lafayette, IN">
+    <img src="thumbs/Scan2025-04-07_195844.jpg" alt="Lisa, Randy, Cathy
+Oct. 1968
+Gushwa, W. Lafayette, IN" loading="lazy">
+    <span class="thumb-caption">Lisa, Randy, Cathy
+Oct. 1968
+Gushwa, W. Lafayette, IN</span>
+  </div>
+  <div class="thumb" onclick="show(85)" tabindex="0" onkeydown="if(event.key==='Enter')show(85)" role="button" aria-label="Cathy, Lisa, Randy
+Nov. 1967" title="Cathy, Lisa, Randy
+Nov. 1967">
+    <img src="thumbs/Scan2025-04-07_195911.jpg" alt="Cathy, Lisa, Randy
+Nov. 1967" loading="lazy">
+    <span class="thumb-caption">Cathy, Lisa, Randy
+Nov. 1967</span>
+  </div>
+  <div class="thumb" onclick="show(86)" tabindex="0" onkeydown="if(event.key==='Enter')show(86)" role="button" aria-label="Cathy, Jen, Lisa
+~1976" title="Cathy, Jen, Lisa
+~1976">
+    <img src="thumbs/Scan2025-04-07_195935.jpg" alt="Cathy, Jen, Lisa
+~1976" loading="lazy">
+    <span class="thumb-caption">Cathy, Jen, Lisa
+~1976</span>
+  </div>
+  <div class="thumb" onclick="show(87)" tabindex="0" onkeydown="if(event.key==='Enter')show(87)" role="button" aria-label="Randy, Cathy, Lisa
+Francis Scott Key Memorial
+Baltimore, Md.
+Aug. 1968" title="Randy, Cathy, Lisa
+Francis Scott Key Memorial
+Baltimore, Md.
+Aug. 1968">
+    <img src="thumbs/Scan2025-04-07_200001.jpg" alt="Randy, Cathy, Lisa
+Francis Scott Key Memorial
+Baltimore, Md.
+Aug. 1968" loading="lazy">
+    <span class="thumb-caption">Randy, Cathy, Lisa
+Francis Scott Key Memorial
+Baltimore, Md.
+Aug. 1968</span>
+  </div>
+  <div class="thumb" onclick="show(88)" tabindex="0" onkeydown="if(event.key==='Enter')show(88)" role="button" aria-label="Randy, Cathy, Nancy, Lisa
+Empire State Building N.Y.C. 1967" title="Randy, Cathy, Nancy, Lisa
+Empire State Building N.Y.C. 1967">
+    <img src="thumbs/Scan2025-04-07_200029.jpg" alt="Randy, Cathy, Nancy, Lisa
+Empire State Building N.Y.C. 1967" loading="lazy">
+    <span class="thumb-caption">Randy, Cathy, Nancy, Lisa
+Empire State Building N.Y.C. 1967</span>
+  </div>
+  <div class="thumb" onclick="show(89)" tabindex="0" onkeydown="if(event.key==='Enter')show(89)" role="button" aria-label="Randy, Lisa
+June 1968
+Gushwa, W. Lafayette, IN" title="Randy, Lisa
+June 1968
+Gushwa, W. Lafayette, IN">
+    <img src="thumbs/Scan2025-04-07_200059.jpg" alt="Randy, Lisa
+June 1968
+Gushwa, W. Lafayette, IN" loading="lazy">
+    <span class="thumb-caption">Randy, Lisa
+June 1968
+Gushwa, W. Lafayette, IN</span>
+  </div>
+  <div class="thumb" onclick="show(90)" tabindex="0" onkeydown="if(event.key==='Enter')show(90)" role="button" aria-label="Gary Thorpe
+Lafayette June 1969" title="Gary Thorpe
+Lafayette June 1969">
+    <img src="thumbs/Scan2025-04-07_200125.jpg" alt="Gary Thorpe
+Lafayette June 1969" loading="lazy">
+    <span class="thumb-caption">Gary Thorpe
+Lafayette June 1969</span>
+  </div>
+  <div class="thumb" onclick="show(91)" tabindex="0" onkeydown="if(event.key==='Enter')show(91)" role="button" aria-label="Randy, Lisa, Cathy
+Aug. 1968" title="Randy, Lisa, Cathy
+Aug. 1968">
+    <img src="thumbs/Scan2025-04-07_200151.jpg" alt="Randy, Lisa, Cathy
+Aug. 1968" loading="lazy">
+    <span class="thumb-caption">Randy, Lisa, Cathy
+Aug. 1968</span>
+  </div>
+  <div class="thumb" onclick="show(92)" tabindex="0" onkeydown="if(event.key==='Enter')show(92)" role="button" aria-label="Lisa, Randy, Cathy
+Santa Claus, Indiana 1968" title="Lisa, Randy, Cathy
+Santa Claus, Indiana 1968">
+    <img src="thumbs/Scan2025-04-07_200219.jpg" alt="Lisa, Randy, Cathy
+Santa Claus, Indiana 1968" loading="lazy">
+    <span class="thumb-caption">Lisa, Randy, Cathy
+Santa Claus, Indiana 1968</span>
+  </div>
+  <div class="thumb" onclick="show(93)" tabindex="0" onkeydown="if(event.key==='Enter')show(93)" role="button" aria-label="Cathy, Randy,
+Lisa" title="Cathy, Randy,
+Lisa">
+    <img src="thumbs/Scan2025-04-07_200247.jpg" alt="Cathy, Randy,
+Lisa" loading="lazy">
+    <span class="thumb-caption">Cathy, Randy,
+Lisa</span>
+  </div>
+  <div class="thumb" onclick="show(94)" tabindex="0" onkeydown="if(event.key==='Enter')show(94)" role="button" aria-label="Cathy, Lisa, Randy
+Catskill Game Farm
+Catskill, N.Y. 1967" title="Cathy, Lisa, Randy
+Catskill Game Farm
+Catskill, N.Y. 1967">
+    <img src="thumbs/Scan2025-04-07_200314.jpg" alt="Cathy, Lisa, Randy
+Catskill Game Farm
+Catskill, N.Y. 1967" loading="lazy">
+    <span class="thumb-caption">Cathy, Lisa, Randy
+Catskill Game Farm
+Catskill, N.Y. 1967</span>
+  </div>
+  <div class="thumb" onclick="show(95)" tabindex="0" onkeydown="if(event.key==='Enter')show(95)" role="button" aria-label="Lisa, Cathy
+Gushwa, W. Lafayette, IN
+~1967" title="Lisa, Cathy
+Gushwa, W. Lafayette, IN
+~1967">
+    <img src="thumbs/Scan2025-04-07_200339.jpg" alt="Lisa, Cathy
+Gushwa, W. Lafayette, IN
+~1967" loading="lazy">
+    <span class="thumb-caption">Lisa, Cathy
+Gushwa, W. Lafayette, IN
+~1967</span>
+  </div>
+  <div class="thumb" onclick="show(96)" tabindex="0" onkeydown="if(event.key==='Enter')show(96)" role="button" aria-label="Lisa, Randy, Cathy
+Poughkeepsi, N.Y. Hudson River Bridge 1967" title="Lisa, Randy, Cathy
+Poughkeepsi, N.Y. Hudson River Bridge 1967">
+    <img src="thumbs/Scan2025-04-07_200410.jpg" alt="Lisa, Randy, Cathy
+Poughkeepsi, N.Y. Hudson River Bridge 1967" loading="lazy">
+    <span class="thumb-caption">Lisa, Randy, Cathy
+Poughkeepsi, N.Y. Hudson River Bridge 1967</span>
+  </div>
+  <div class="thumb" onclick="show(97)" tabindex="0" onkeydown="if(event.key==='Enter')show(97)" role="button" aria-label="Lisa, Randy, Cathy
+Chicago May 1969" title="Lisa, Randy, Cathy
+Chicago May 1969">
+    <img src="thumbs/Scan2025-04-07_200434.jpg" alt="Lisa, Randy, Cathy
+Chicago May 1969" loading="lazy">
+    <span class="thumb-caption">Lisa, Randy, Cathy
+Chicago May 1969</span>
+  </div>
+  <div class="thumb" onclick="show(98)" tabindex="0" onkeydown="if(event.key==='Enter')show(98)" role="button" aria-label="Randy, Lisa, Jim, Cathy
+July 1965" title="Randy, Lisa, Jim, Cathy
+July 1965">
+    <img src="thumbs/Scan2025-04-07_200507.jpg" alt="Randy, Lisa, Jim, Cathy
+July 1965" loading="lazy">
+    <span class="thumb-caption">Randy, Lisa, Jim, Cathy
+July 1965</span>
+  </div>
+  <div class="thumb" onclick="show(99)" tabindex="0" onkeydown="if(event.key==='Enter')show(99)" role="button" aria-label="Cathy, Lisa
+Aug. 1966
+Gushwa, W. Lafayette, IN" title="Cathy, Lisa
+Aug. 1966
+Gushwa, W. Lafayette, IN">
+    <img src="thumbs/Scan2025-04-07_200533.jpg" alt="Cathy, Lisa
+Aug. 1966
+Gushwa, W. Lafayette, IN" loading="lazy">
+    <span class="thumb-caption">Cathy, Lisa
+Aug. 1966
+Gushwa, W. Lafayette, IN</span>
+  </div>
+  <div class="thumb" onclick="show(100)" tabindex="0" onkeydown="if(event.key==='Enter')show(100)" role="button" aria-label="Randy, Lisa, Cathy
+First day of school, 1967
+Gushwa, W. Lafayette, IN" title="Randy, Lisa, Cathy
+First day of school, 1967
+Gushwa, W. Lafayette, IN">
+    <img src="thumbs/Scan2025-04-07_200557.jpg" alt="Randy, Lisa, Cathy
+First day of school, 1967
+Gushwa, W. Lafayette, IN" loading="lazy">
+    <span class="thumb-caption">Randy, Lisa, Cathy
+First day of school, 1967
+Gushwa, W. Lafayette, IN</span>
+  </div>
+  <div class="thumb" onclick="show(101)" tabindex="0" onkeydown="if(event.key==='Enter')show(101)" role="button" aria-label="Lisa, Randy
+~1967
+Gushwa, W. Lafayette, IN" title="Lisa, Randy
+~1967
+Gushwa, W. Lafayette, IN">
+    <img src="thumbs/Scan2025-04-07_200624.jpg" alt="Lisa, Randy
+~1967
+Gushwa, W. Lafayette, IN" loading="lazy">
+    <span class="thumb-caption">Lisa, Randy
+~1967
+Gushwa, W. Lafayette, IN</span>
+  </div>
+  <div class="thumb" onclick="show(102)" tabindex="0" onkeydown="if(event.key==='Enter')show(102)" role="button" aria-label="I shot this black bear near Blind River Canada. After gutting it, I packed it full of ice for the trip home. I then took it to a taxidermist who skinned it and mounted it. We ate the meat." title="I shot this black bear near Blind River Canada. After gutting it, I packed it full of ice for the trip home. I then took it to a taxidermist who skinned it and mounted it. We ate the meat.">
+    <img src="thumbs/Scan2025-04-07_200659.jpg" alt="I shot this black bear near Blind River Canada. After gutting it, I packed it full of ice for the trip home. I then took it to a taxidermist who skinned it and mounted it. We ate the meat." loading="lazy">
+    <span class="thumb-caption">I shot this black bear near Blind River Canada. After gutting it, I packed it full of ice for the trip home. I then took it to a taxidermist who skinned it and mounted it. We ate the meat.</span>
+  </div>
+  <div class="thumb" onclick="show(103)" tabindex="0" onkeydown="if(event.key==='Enter')show(103)" role="button" aria-label="Cathy
+Randy
+Lisa
+June 1968
+Gushwa, W. Lafayette, IN" title="Cathy
+Randy
+Lisa
+June 1968
+Gushwa, W. Lafayette, IN">
+    <img src="thumbs/Scan2025-04-07_200726.jpg" alt="Cathy
+Randy
+Lisa
+June 1968
+Gushwa, W. Lafayette, IN" loading="lazy">
+    <span class="thumb-caption">Cathy
+Randy
+Lisa
+June 1968
+Gushwa, W. Lafayette, IN</span>
+  </div>
+  <div class="thumb" onclick="show(104)" tabindex="0" onkeydown="if(event.key==='Enter')show(104)" role="button" aria-label="Randy, Lisa, Cathy
+July 1968" title="Randy, Lisa, Cathy
+July 1968">
+    <img src="thumbs/Scan2025-04-07_200750.jpg" alt="Randy, Lisa, Cathy
+July 1968" loading="lazy">
+    <span class="thumb-caption">Randy, Lisa, Cathy
+July 1968</span>
+  </div>
+  <div class="thumb" onclick="show(105)" tabindex="0" onkeydown="if(event.key==='Enter')show(105)" role="button" aria-label="Lisa, Cathy, Randy
+First day of school ~1969
+Gushwa, W. Lafayette, IN" title="Lisa, Cathy, Randy
+First day of school ~1969
+Gushwa, W. Lafayette, IN">
+    <img src="thumbs/Scan2025-04-07_200814.jpg" alt="Lisa, Cathy, Randy
+First day of school ~1969
+Gushwa, W. Lafayette, IN" loading="lazy">
+    <span class="thumb-caption">Lisa, Cathy, Randy
+First day of school ~1969
+Gushwa, W. Lafayette, IN</span>
+  </div>
+  <div class="thumb" onclick="show(106)" tabindex="0" onkeydown="if(event.key==='Enter')show(106)" role="button" aria-label="Cathy, Lisa
+Xmas 1967
+Gushwa, Lafayette, IN" title="Cathy, Lisa
+Xmas 1967
+Gushwa, Lafayette, IN">
+    <img src="thumbs/Scan2025-04-07_200843.jpg" alt="Cathy, Lisa
+Xmas 1967
+Gushwa, Lafayette, IN" loading="lazy">
+    <span class="thumb-caption">Cathy, Lisa
+Xmas 1967
+Gushwa, Lafayette, IN</span>
+  </div>
+  <div class="thumb" onclick="show(107)" tabindex="0" onkeydown="if(event.key==='Enter')show(107)" role="button" aria-label="Cathy, Santa, Randy
+Lisa
+Santa Clause Land, Indiana
+~1969" title="Cathy, Santa, Randy
+Lisa
+Santa Clause Land, Indiana
+~1969">
+    <img src="thumbs/Scan2025-04-07_200913.jpg" alt="Cathy, Santa, Randy
+Lisa
+Santa Clause Land, Indiana
+~1969" loading="lazy">
+    <span class="thumb-caption">Cathy, Santa, Randy
+Lisa
+Santa Clause Land, Indiana
+~1969</span>
+  </div>
+  <div class="thumb" onclick="show(108)" tabindex="0" onkeydown="if(event.key==='Enter')show(108)" role="button" aria-label="Randy, Cathy, Lisa
+St. Louis Zoo Aug.68" title="Randy, Cathy, Lisa
+St. Louis Zoo Aug.68">
+    <img src="thumbs/Scan2025-04-07_200948.jpg" alt="Randy, Cathy, Lisa
+St. Louis Zoo Aug.68" loading="lazy">
+    <span class="thumb-caption">Randy, Cathy, Lisa
+St. Louis Zoo Aug.68</span>
+  </div>
+  <div class="thumb" onclick="show(109)" tabindex="0" onkeydown="if(event.key==='Enter')show(109)" role="button" aria-label="Lisa, Cathy, Randy
+~1969" title="Lisa, Cathy, Randy
+~1969">
+    <img src="thumbs/Scan2025-04-07_201021.jpg" alt="Lisa, Cathy, Randy
+~1969" loading="lazy">
+    <span class="thumb-caption">Lisa, Cathy, Randy
+~1969</span>
+  </div>
+  <div class="thumb" onclick="show(110)" tabindex="0" onkeydown="if(event.key==='Enter')show(110)" role="button" aria-label="Cathy, Lisa, Randy
+Xmas 1967" title="Cathy, Lisa, Randy
+Xmas 1967">
+    <img src="thumbs/Scan2025-04-07_201048.jpg" alt="Cathy, Lisa, Randy
+Xmas 1967" loading="lazy">
+    <span class="thumb-caption">Cathy, Lisa, Randy
+Xmas 1967</span>
+  </div>
+  <div class="thumb" onclick="show(111)" tabindex="0" onkeydown="if(event.key==='Enter')show(111)" role="button" aria-label="Cathy, Lisa, Randy
+July 1964
+Gushwa, Lafayette, IN" title="Cathy, Lisa, Randy
+July 1964
+Gushwa, Lafayette, IN">
+    <img src="thumbs/Scan2025-04-07_201117.jpg" alt="Cathy, Lisa, Randy
+July 1964
+Gushwa, Lafayette, IN" loading="lazy">
+    <span class="thumb-caption">Cathy, Lisa, Randy
+July 1964
+Gushwa, Lafayette, IN</span>
+  </div>
+  <div class="thumb" onclick="show(112)" tabindex="0" onkeydown="if(event.key==='Enter')show(112)" role="button" aria-label="Randy, Cathy, Lisa
+Washington, D.C. 1967" title="Randy, Cathy, Lisa
+Washington, D.C. 1967">
+    <img src="thumbs/Scan2025-04-07_201332.jpg" alt="Randy, Cathy, Lisa
+Washington, D.C. 1967" loading="lazy">
+    <span class="thumb-caption">Randy, Cathy, Lisa
+Washington, D.C. 1967</span>
+  </div>
+  <div class="thumb" onclick="show(113)" tabindex="0" onkeydown="if(event.key==='Enter')show(113)" role="button" aria-label="Lisa, Randy, Cathy
+Gettysburg Penn. 1969 Aug." title="Lisa, Randy, Cathy
+Gettysburg Penn. 1969 Aug.">
+    <img src="thumbs/Scan2025-04-07_201356.jpg" alt="Lisa, Randy, Cathy
+Gettysburg Penn. 1969 Aug." loading="lazy">
+    <span class="thumb-caption">Lisa, Randy, Cathy
+Gettysburg Penn. 1969 Aug.</span>
+  </div>
+  <div class="thumb" onclick="show(114)" tabindex="0" onkeydown="if(event.key==='Enter')show(114)" role="button" aria-label="Aunt Cindy, Cathy, Randy
+Lisa
+Oct. 1964" title="Aunt Cindy, Cathy, Randy
+Lisa
+Oct. 1964">
+    <img src="thumbs/Scan2025-04-07_201425.jpg" alt="Aunt Cindy, Cathy, Randy
+Lisa
+Oct. 1964" loading="lazy">
+    <span class="thumb-caption">Aunt Cindy, Cathy, Randy
+Lisa
+Oct. 1964</span>
+  </div>
+  <div class="thumb" onclick="show(115)" tabindex="0" onkeydown="if(event.key==='Enter')show(115)" role="button" aria-label="Jim, Lisa, Cathy, Randy
+Catskill Game Farm
+Catskill, N.Y. 1967" title="Jim, Lisa, Cathy, Randy
+Catskill Game Farm
+Catskill, N.Y. 1967">
+    <img src="thumbs/Scan2025-04-07_201452.jpg" alt="Jim, Lisa, Cathy, Randy
+Catskill Game Farm
+Catskill, N.Y. 1967" loading="lazy">
+    <span class="thumb-caption">Jim, Lisa, Cathy, Randy
+Catskill Game Farm
+Catskill, N.Y. 1967</span>
+  </div>
+  <div class="thumb" onclick="show(116)" tabindex="0" onkeydown="if(event.key==='Enter')show(116)" role="button" aria-label="Lisa, Cathy, Jen
+Hawthorne Ridge Dr. W. Lafayette, IN" title="Lisa, Cathy, Jen
+Hawthorne Ridge Dr. W. Lafayette, IN">
+    <img src="thumbs/Scan2025-04-07_201521.jpg" alt="Lisa, Cathy, Jen
+Hawthorne Ridge Dr. W. Lafayette, IN" loading="lazy">
+    <span class="thumb-caption">Lisa, Cathy, Jen
+Hawthorne Ridge Dr. W. Lafayette, IN</span>
+  </div>
+  <div class="thumb" onclick="show(117)" tabindex="0" onkeydown="if(event.key==='Enter')show(117)" role="button" aria-label="Randy
+Lisa, Cathy
+Jen
+~1974" title="Randy
+Lisa, Cathy
+Jen
+~1974">
+    <img src="thumbs/Scan2025-04-07_201555.jpg" alt="Randy
+Lisa, Cathy
+Jen
+~1974" loading="lazy">
+    <span class="thumb-caption">Randy
+Lisa, Cathy
+Jen
+~1974</span>
+  </div>
+  <div class="thumb" onclick="show(118)" tabindex="0" onkeydown="if(event.key==='Enter')show(118)" role="button" aria-label="Cathy, Lisa, Randy (Santa is probably Jim)
+1968
+Gushwa, Lafayette, IN" title="Cathy, Lisa, Randy (Santa is probably Jim)
+1968
+Gushwa, Lafayette, IN">
+    <img src="thumbs/Scan2025-04-07_201633.jpg" alt="Cathy, Lisa, Randy (Santa is probably Jim)
+1968
+Gushwa, Lafayette, IN" loading="lazy">
+    <span class="thumb-caption">Cathy, Lisa, Randy (Santa is probably Jim)
+1968
+Gushwa, Lafayette, IN</span>
+  </div>
+  <div class="thumb" onclick="show(119)" tabindex="0" onkeydown="if(event.key==='Enter')show(119)" role="button" aria-label="Lisa, Randy, Cathy
+Sept. 1969 Pokey &amp; the kids
+Gushwa, Lafayette, IN" title="Lisa, Randy, Cathy
+Sept. 1969 Pokey &amp; the kids
+Gushwa, Lafayette, IN">
+    <img src="thumbs/Scan2025-04-07_201709.jpg" alt="Lisa, Randy, Cathy
+Sept. 1969 Pokey &amp; the kids
+Gushwa, Lafayette, IN" loading="lazy">
+    <span class="thumb-caption">Lisa, Randy, Cathy
+Sept. 1969 Pokey &amp; the kids
+Gushwa, Lafayette, IN</span>
+  </div>
+  <div class="thumb" onclick="show(120)" tabindex="0" onkeydown="if(event.key==='Enter')show(120)" role="button" aria-label="Cathy, Lisa, Randy
+~1968" title="Cathy, Lisa, Randy
+~1968">
+    <img src="thumbs/Scan2025-04-07_201738.jpg" alt="Cathy, Lisa, Randy
+~1968" loading="lazy">
+    <span class="thumb-caption">Cathy, Lisa, Randy
+~1968</span>
+  </div>
+  <div class="thumb" onclick="show(121)" tabindex="0" onkeydown="if(event.key==='Enter')show(121)" role="button" aria-label="Cathy, Lisa, Rrandy
+Nov. 1967" title="Cathy, Lisa, Rrandy
+Nov. 1967">
+    <img src="thumbs/Scan2025-04-07_201810.jpg" alt="Cathy, Lisa, Rrandy
+Nov. 1967" loading="lazy">
+    <span class="thumb-caption">Cathy, Lisa, Rrandy
+Nov. 1967</span>
+  </div>
+  <div class="thumb" onclick="show(122)" tabindex="0" onkeydown="if(event.key==='Enter')show(122)" role="button" aria-label="Randy, Lisa, Jim
+11:12am, July 9, 1970
+Gatlinburg, TN" title="Randy, Lisa, Jim
+11:12am, July 9, 1970
+Gatlinburg, TN">
+    <img src="thumbs/Scan2025-04-07_201838.jpg" alt="Randy, Lisa, Jim
+11:12am, July 9, 1970
+Gatlinburg, TN" loading="lazy">
+    <span class="thumb-caption">Randy, Lisa, Jim
+11:12am, July 9, 1970
+Gatlinburg, TN</span>
+  </div>
+  <div class="thumb" onclick="show(123)" tabindex="0" onkeydown="if(event.key==='Enter')show(123)" role="button" aria-label="Jen, Lisa
+Chrismas
+1972
+Hawthorne Ridge Dr., W. Lafayette, IN" title="Jen, Lisa
+Chrismas
+1972
+Hawthorne Ridge Dr., W. Lafayette, IN">
+    <img src="thumbs/Scan2025-04-07_201913.jpg" alt="Jen, Lisa
+Chrismas
+1972
+Hawthorne Ridge Dr., W. Lafayette, IN" loading="lazy">
+    <span class="thumb-caption">Jen, Lisa
+Chrismas
+1972
+Hawthorne Ridge Dr., W. Lafayette, IN</span>
+  </div>
+  <div class="thumb" onclick="show(124)" tabindex="0" onkeydown="if(event.key==='Enter')show(124)" role="button" aria-label="Lisa, Cathy, Randy
+Jan 1965" title="Lisa, Cathy, Randy
+Jan 1965">
+    <img src="thumbs/Scan2025-04-07_201943.jpg" alt="Lisa, Cathy, Randy
+Jan 1965" loading="lazy">
+    <span class="thumb-caption">Lisa, Cathy, Randy
+Jan 1965</span>
+  </div>
+  <div class="thumb" onclick="show(125)" tabindex="0" onkeydown="if(event.key==='Enter')show(125)" role="button" aria-label="Cathy, Lisa, Randy
+Easter 1969
+Gushwa Dr., Lafayette, IN" title="Cathy, Lisa, Randy
+Easter 1969
+Gushwa Dr., Lafayette, IN">
+    <img src="thumbs/Scan2025-04-07_202018.jpg" alt="Cathy, Lisa, Randy
+Easter 1969
+Gushwa Dr., Lafayette, IN" loading="lazy">
+    <span class="thumb-caption">Cathy, Lisa, Randy
+Easter 1969
+Gushwa Dr., Lafayette, IN</span>
+  </div>
+  <div class="thumb" onclick="show(126)" tabindex="0" onkeydown="if(event.key==='Enter')show(126)" role="button" aria-label="Lisa, Randy, Cathy
+Jen
+Firstday of school, 1970" title="Lisa, Randy, Cathy
+Jen
+Firstday of school, 1970">
+    <img src="thumbs/Scan2025-04-07_202048.jpg" alt="Lisa, Randy, Cathy
+Jen
+Firstday of school, 1970" loading="lazy">
+    <span class="thumb-caption">Lisa, Randy, Cathy
+Jen
+Firstday of school, 1970</span>
+  </div>
+  <div class="thumb" onclick="show(127)" tabindex="0" onkeydown="if(event.key==='Enter')show(127)" role="button" aria-label="Lisa, Randy, Cathy
+Firstday of school, 1970" title="Lisa, Randy, Cathy
+Firstday of school, 1970">
+    <img src="thumbs/Scan2025-04-07_202118.jpg" alt="Lisa, Randy, Cathy
+Firstday of school, 1970" loading="lazy">
+    <span class="thumb-caption">Lisa, Randy, Cathy
+Firstday of school, 1970</span>
+  </div>
+  <div class="thumb" onclick="show(128)" tabindex="0" onkeydown="if(event.key==='Enter')show(128)" role="button" aria-label="Lisa, Randy, Cathy
+First day of school 1972
+Hawthorne Ridge Dr., W. Lafayette, IN" title="Lisa, Randy, Cathy
+First day of school 1972
+Hawthorne Ridge Dr., W. Lafayette, IN">
+    <img src="thumbs/Scan2025-04-07_202211.jpg" alt="Lisa, Randy, Cathy
+First day of school 1972
+Hawthorne Ridge Dr., W. Lafayette, IN" loading="lazy">
+    <span class="thumb-caption">Lisa, Randy, Cathy
+First day of school 1972
+Hawthorne Ridge Dr., W. Lafayette, IN</span>
+  </div>
+  <div class="thumb" onclick="show(129)" tabindex="0" onkeydown="if(event.key==='Enter')show(129)" role="button" aria-label="Cathy, Lisa, Randy
+Christmas 1967
+Gushwa Dr., Lafayette, IN" title="Cathy, Lisa, Randy
+Christmas 1967
+Gushwa Dr., Lafayette, IN">
+    <img src="thumbs/Scan2025-04-07_202240.jpg" alt="Cathy, Lisa, Randy
+Christmas 1967
+Gushwa Dr., Lafayette, IN" loading="lazy">
+    <span class="thumb-caption">Cathy, Lisa, Randy
+Christmas 1967
+Gushwa Dr., Lafayette, IN</span>
+  </div>
+  <div class="thumb" onclick="show(130)" tabindex="0" onkeydown="if(event.key==='Enter')show(130)" role="button" aria-label="Lisa, Cathy
+Feb. 1967
+Gushwa Dr., Lafayette, IN" title="Lisa, Cathy
+Feb. 1967
+Gushwa Dr., Lafayette, IN">
+    <img src="thumbs/Scan2025-04-07_202316.jpg" alt="Lisa, Cathy
+Feb. 1967
+Gushwa Dr., Lafayette, IN" loading="lazy">
+    <span class="thumb-caption">Lisa, Cathy
+Feb. 1967
+Gushwa Dr., Lafayette, IN</span>
+  </div>
+  <div class="thumb" onclick="show(131)" tabindex="0" onkeydown="if(event.key==='Enter')show(131)" role="button" aria-label="Lisa, Cathy, Randy
+~1967
+Gushwa Dr., Lafayette, IN" title="Lisa, Cathy, Randy
+~1967
+Gushwa Dr., Lafayette, IN">
+    <img src="thumbs/Scan2025-04-07_202346.jpg" alt="Lisa, Cathy, Randy
+~1967
+Gushwa Dr., Lafayette, IN" loading="lazy">
+    <span class="thumb-caption">Lisa, Cathy, Randy
+~1967
+Gushwa Dr., Lafayette, IN</span>
+  </div>
+  <div class="thumb" onclick="show(132)" tabindex="0" onkeydown="if(event.key==='Enter')show(132)" role="button" aria-label="Cathy, Lisa, Randy
+Penn. Aug 1969" title="Cathy, Lisa, Randy
+Penn. Aug 1969">
+    <img src="thumbs/Scan2025-04-07_202415.jpg" alt="Cathy, Lisa, Randy
+Penn. Aug 1969" loading="lazy">
+    <span class="thumb-caption">Cathy, Lisa, Randy
+Penn. Aug 1969</span>
+  </div>
+  <div class="thumb" onclick="show(133)" tabindex="0" onkeydown="if(event.key==='Enter')show(133)" role="button" aria-label="Jim
+Lisa, Cathy, Randy
+Gettysburg Penn. Aug. 1968" title="Jim
+Lisa, Cathy, Randy
+Gettysburg Penn. Aug. 1968">
+    <img src="thumbs/Scan2025-04-07_202442.jpg" alt="Jim
+Lisa, Cathy, Randy
+Gettysburg Penn. Aug. 1968" loading="lazy">
+    <span class="thumb-caption">Jim
+Lisa, Cathy, Randy
+Gettysburg Penn. Aug. 1968</span>
+  </div>
+  <div class="thumb" onclick="show(134)" tabindex="0" onkeydown="if(event.key==='Enter')show(134)" role="button" aria-label="Randy, Lisa, Cathy
+~1970" title="Randy, Lisa, Cathy
+~1970">
+    <img src="thumbs/Scan2025-04-07_202508.jpg" alt="Randy, Lisa, Cathy
+~1970" loading="lazy">
+    <span class="thumb-caption">Randy, Lisa, Cathy
+~1970</span>
+  </div>
+  <div class="thumb" onclick="show(135)" tabindex="0" onkeydown="if(event.key==='Enter')show(135)" role="button" aria-label="Lisa
+Christmas
+~1972" title="Lisa
+Christmas
+~1972">
+    <img src="thumbs/Scan2025-04-07_202532.jpg" alt="Lisa
+Christmas
+~1972" loading="lazy">
+    <span class="thumb-caption">Lisa
+Christmas
+~1972</span>
+  </div>
+  <div class="thumb" onclick="show(136)" tabindex="0" onkeydown="if(event.key==='Enter')show(136)" role="button" aria-label="Randy
+Lisa, Cathy
+Jen
+~1974" title="Randy
+Lisa, Cathy
+Jen
+~1974">
+    <img src="thumbs/Scan2025-04-07_202802.jpg" alt="Randy
+Lisa, Cathy
+Jen
+~1974" loading="lazy">
+    <span class="thumb-caption">Randy
+Lisa, Cathy
+Jen
+~1974</span>
+  </div>
+  <div class="thumb" onclick="show(137)" tabindex="0" onkeydown="if(event.key==='Enter')show(137)" role="button" aria-label="Jack Cole
+Martha Cole Haynes
+Cole Farmstead, Williamsport, IN" title="Jack Cole
+Martha Cole Haynes
+Cole Farmstead, Williamsport, IN">
+    <img src="thumbs/Scan2025-04-07_202829.jpg" alt="Jack Cole
+Martha Cole Haynes
+Cole Farmstead, Williamsport, IN" loading="lazy">
+    <span class="thumb-caption">Jack Cole
+Martha Cole Haynes
+Cole Farmstead, Williamsport, IN</span>
+  </div>
+  <div class="thumb" onclick="show(138)" tabindex="0" onkeydown="if(event.key==='Enter')show(138)" role="button" aria-label="Jen, Lisa
+~1980" title="Jen, Lisa
+~1980">
+    <img src="thumbs/Scan2025-04-07_202909.jpg" alt="Jen, Lisa
+~1980" loading="lazy">
+    <span class="thumb-caption">Jen, Lisa
+~1980</span>
+  </div>
+  <div class="thumb" onclick="show(139)" tabindex="0" onkeydown="if(event.key==='Enter')show(139)" role="button" aria-label="Jen, Lisa
+~1980" title="Jen, Lisa
+~1980">
+    <img src="thumbs/Scan2025-04-07_203000.jpg" alt="Jen, Lisa
+~1980" loading="lazy">
+    <span class="thumb-caption">Jen, Lisa
+~1980</span>
+  </div>
+  <div class="thumb" onclick="show(140)" tabindex="0" onkeydown="if(event.key==='Enter')show(140)" role="button" aria-label="Randy, Cathy, Lisa
+August 1966
+Gushwa Dr., Lafayette, IN" title="Randy, Cathy, Lisa
+August 1966
+Gushwa Dr., Lafayette, IN">
+    <img src="thumbs/Scan2025-04-07_203030.jpg" alt="Randy, Cathy, Lisa
+August 1966
+Gushwa Dr., Lafayette, IN" loading="lazy">
+    <span class="thumb-caption">Randy, Cathy, Lisa
+August 1966
+Gushwa Dr., Lafayette, IN</span>
+  </div>
+  <div class="thumb" onclick="show(141)" tabindex="0" onkeydown="if(event.key==='Enter')show(141)" role="button" aria-label="Jim
+Lisa
+Jen
+Stone Mountain, GA
+~1980" title="Jim
+Lisa
+Jen
+Stone Mountain, GA
+~1980">
+    <img src="thumbs/Scan2025-04-07_203121.jpg" alt="Jim
+Lisa
+Jen
+Stone Mountain, GA
+~1980" loading="lazy">
+    <span class="thumb-caption">Jim
+Lisa
+Jen
+Stone Mountain, GA
+~1980</span>
+  </div>
+  <div class="thumb" onclick="show(142)" tabindex="0" onkeydown="if(event.key==='Enter')show(142)" role="button" aria-label="Randy, Cathy
+Xmas 62" title="Randy, Cathy
+Xmas 62">
+    <img src="thumbs/Scan2025-04-07_203151.jpg" alt="Randy, Cathy
+Xmas 62" loading="lazy">
+    <span class="thumb-caption">Randy, Cathy
+Xmas 62</span>
+  </div>
+  <div class="thumb" onclick="show(143)" tabindex="0" onkeydown="if(event.key==='Enter')show(143)" role="button" aria-label="Cathy
+Jen, Lisa, Jim
+~1972
+Hawthorne Ridge Dr., W. Lafayette, IN" title="Cathy
+Jen, Lisa, Jim
+~1972
+Hawthorne Ridge Dr., W. Lafayette, IN">
+    <img src="thumbs/Scan2025-04-07_203226.jpg" alt="Cathy
+Jen, Lisa, Jim
+~1972
+Hawthorne Ridge Dr., W. Lafayette, IN" loading="lazy">
+    <span class="thumb-caption">Cathy
+Jen, Lisa, Jim
+~1972
+Hawthorne Ridge Dr., W. Lafayette, IN</span>
+  </div>
+  <div class="thumb" onclick="show(144)" tabindex="0" onkeydown="if(event.key==='Enter')show(144)" role="button" aria-label="Jeff Wilson, Randy, Cathy
+Lisa, Gary Wilson, John Wilson
+June 1968" title="Jeff Wilson, Randy, Cathy
+Lisa, Gary Wilson, John Wilson
+June 1968">
+    <img src="thumbs/Scan2025-04-07_203258.jpg" alt="Jeff Wilson, Randy, Cathy
+Lisa, Gary Wilson, John Wilson
+June 1968" loading="lazy">
+    <span class="thumb-caption">Jeff Wilson, Randy, Cathy
+Lisa, Gary Wilson, John Wilson
+June 1968</span>
+  </div>
+  <div class="thumb" onclick="show(145)" tabindex="0" onkeydown="if(event.key==='Enter')show(145)" role="button" aria-label="left to right:
+___?____, Geneva holding Nancy Wilson, Mamie, Evelyn with Joanne &amp; Bob Melton and Donnie Wilson?" title="left to right:
+___?____, Geneva holding Nancy Wilson, Mamie, Evelyn with Joanne &amp; Bob Melton and Donnie Wilson?">
+    <img src="thumbs/Scan2025-04-07_203328.jpg" alt="left to right:
+___?____, Geneva holding Nancy Wilson, Mamie, Evelyn with Joanne &amp; Bob Melton and Donnie Wilson?" loading="lazy">
+    <span class="thumb-caption">left to right:
+___?____, Geneva holding Nancy Wilson, Mamie, Evelyn with Joanne &amp; Bob Melton and Donnie Wilson?</span>
+  </div>
+  <div class="thumb" onclick="show(146)" tabindex="0" onkeydown="if(event.key==='Enter')show(146)" role="button" aria-label="(From left, clockwise):
+Billy or Eddie Haynes, unknown, Lula Cole, Jo Cole, Nancy Cole, Martha Haynes (standing), Jeannie Cole (standing), Lewis Cole, Tony Cole, Dick Cole, Jim Cole, Sam Haynes" title="(From left, clockwise):
+Billy or Eddie Haynes, unknown, Lula Cole, Jo Cole, Nancy Cole, Martha Haynes (standing), Jeannie Cole (standing), Lewis Cole, Tony Cole, Dick Cole, Jim Cole, Sam Haynes">
+    <img src="thumbs/Scan2025-04-07_203357.jpg" alt="(From left, clockwise):
+Billy or Eddie Haynes, unknown, Lula Cole, Jo Cole, Nancy Cole, Martha Haynes (standing), Jeannie Cole (standing), Lewis Cole, Tony Cole, Dick Cole, Jim Cole, Sam Haynes" loading="lazy">
+    <span class="thumb-caption">(From left, clockwise):
+Billy or Eddie Haynes, unknown, Lula Cole, Jo Cole, Nancy Cole, Martha Haynes (standing), Jeannie Cole (standing), Lewis Cole, Tony Cole, Dick Cole, Jim Cole, Sam Haynes</span>
+  </div>
+  <div class="thumb" onclick="show(147)" tabindex="0" onkeydown="if(event.key==='Enter')show(147)" role="button" aria-label="Tigon, Jen
+April 1986
+Hawthorne Ridge Dr. W. Lafayette, IN" title="Tigon, Jen
+April 1986
+Hawthorne Ridge Dr. W. Lafayette, IN">
+    <img src="thumbs/Scan2025-04-07_203424.jpg" alt="Tigon, Jen
+April 1986
+Hawthorne Ridge Dr. W. Lafayette, IN" loading="lazy">
+    <span class="thumb-caption">Tigon, Jen
+April 1986
+Hawthorne Ridge Dr. W. Lafayette, IN</span>
+  </div>
+  <div class="thumb" onclick="show(148)" tabindex="0" onkeydown="if(event.key==='Enter')show(148)" role="button" aria-label="Jim and Nancy&#x27;s 40th wedding anniversary
+(back) Cathy, Nancy, Jim, Randy
+(front) Lisa, Jen
+Bluefin Cir., Indianapolis, IN" title="Jim and Nancy&#x27;s 40th wedding anniversary
+(back) Cathy, Nancy, Jim, Randy
+(front) Lisa, Jen
+Bluefin Cir., Indianapolis, IN">
+    <img src="thumbs/Scan2025-04-07_203454.jpg" alt="Jim and Nancy&#x27;s 40th wedding anniversary
+(back) Cathy, Nancy, Jim, Randy
+(front) Lisa, Jen
+Bluefin Cir., Indianapolis, IN" loading="lazy">
+    <span class="thumb-caption">Jim and Nancy&#x27;s 40th wedding anniversary
+(back) Cathy, Nancy, Jim, Randy
+(front) Lisa, Jen
+Bluefin Cir., Indianapolis, IN</span>
+  </div>
+  <div class="thumb" onclick="show(149)" tabindex="0" onkeydown="if(event.key==='Enter')show(149)" role="button" aria-label="(back) Mark, Lyle
+Randy, Jim, Nancy
+Mike, Lisa, Jen, Cathy
+Tigon, Ian
+~1988
+Hawthorne Ridge Dr., W. Lafayette, IN" title="(back) Mark, Lyle
+Randy, Jim, Nancy
+Mike, Lisa, Jen, Cathy
+Tigon, Ian
+~1988
+Hawthorne Ridge Dr., W. Lafayette, IN">
+    <img src="thumbs/Scan2025-04-07_203536.jpg" alt="(back) Mark, Lyle
+Randy, Jim, Nancy
+Mike, Lisa, Jen, Cathy
+Tigon, Ian
+~1988
+Hawthorne Ridge Dr., W. Lafayette, IN" loading="lazy">
+    <span class="thumb-caption">(back) Mark, Lyle
+Randy, Jim, Nancy
+Mike, Lisa, Jen, Cathy
+Tigon, Ian
+~1988
+Hawthorne Ridge Dr., W. Lafayette, IN</span>
+  </div>
+  <div class="thumb" onclick="show(150)" tabindex="0" onkeydown="if(event.key==='Enter')show(150)" role="button" aria-label="Tornado!
+1974
+Hawthorne Ridge Dr., W. Lafayette, IN" title="Tornado!
+1974
+Hawthorne Ridge Dr., W. Lafayette, IN">
+    <img src="thumbs/Scan2025-04-07_203606.jpg" alt="Tornado!
+1974
+Hawthorne Ridge Dr., W. Lafayette, IN" loading="lazy">
+    <span class="thumb-caption">Tornado!
+1974
+Hawthorne Ridge Dr., W. Lafayette, IN</span>
+  </div>
+  <div class="thumb" onclick="show(151)" tabindex="0" onkeydown="if(event.key==='Enter')show(151)" role="button" aria-label="Lisa
+(unknown in the background)
+Easter 1973
+Hawthorne Ridge Dr., W. Lafayette, IN" title="Lisa
+(unknown in the background)
+Easter 1973
+Hawthorne Ridge Dr., W. Lafayette, IN">
+    <img src="thumbs/Scan2025-04-07_203636.jpg" alt="Lisa
+(unknown in the background)
+Easter 1973
+Hawthorne Ridge Dr., W. Lafayette, IN" loading="lazy">
+    <span class="thumb-caption">Lisa
+(unknown in the background)
+Easter 1973
+Hawthorne Ridge Dr., W. Lafayette, IN</span>
+  </div>
+  <div class="thumb" onclick="show(152)" tabindex="0" onkeydown="if(event.key==='Enter')show(152)" role="button" aria-label="1976
+Cathy 16
+Randy 15
+Lisa 11
+Jenni 5" title="1976
+Cathy 16
+Randy 15
+Lisa 11
+Jenni 5">
+    <img src="thumbs/Scan2025-04-07_203707.jpg" alt="1976
+Cathy 16
+Randy 15
+Lisa 11
+Jenni 5" loading="lazy">
+    <span class="thumb-caption">1976
+Cathy 16
+Randy 15
+Lisa 11
+Jenni 5</span>
+  </div>
+  <div class="thumb" onclick="show(153)" tabindex="0" onkeydown="if(event.key==='Enter')show(153)" role="button" aria-label="Cathy, Randy, Lisa
+1968" title="Cathy, Randy, Lisa
+1968">
+    <img src="thumbs/Scan2025-04-07_203749.jpg" alt="Cathy, Randy, Lisa
+1968" loading="lazy">
+    <span class="thumb-caption">Cathy, Randy, Lisa
+1968</span>
+  </div>
+  <div class="thumb" onclick="show(154)" tabindex="0" onkeydown="if(event.key==='Enter')show(154)" role="button" aria-label="Nancy, Tigon
+1987
+Riverbanks Zoo, Columbia, South Carolina" title="Nancy, Tigon
+1987
+Riverbanks Zoo, Columbia, South Carolina">
+    <img src="thumbs/Scan2025-04-07_203818.jpg" alt="Nancy, Tigon
+1987
+Riverbanks Zoo, Columbia, South Carolina" loading="lazy">
+    <span class="thumb-caption">Nancy, Tigon
+1987
+Riverbanks Zoo, Columbia, South Carolina</span>
+  </div>
+  <div class="thumb" onclick="show(155)" tabindex="0" onkeydown="if(event.key==='Enter')show(155)" role="button" aria-label="Cathy, Jim, Nancy, Ian, Tigon, Jen, Lyle
+~1988
+Hawthorne Ridge Dr., W. Lafayette, IN" title="Cathy, Jim, Nancy, Ian, Tigon, Jen, Lyle
+~1988
+Hawthorne Ridge Dr., W. Lafayette, IN">
+    <img src="thumbs/Scan2025-04-07_203848.jpg" alt="Cathy, Jim, Nancy, Ian, Tigon, Jen, Lyle
+~1988
+Hawthorne Ridge Dr., W. Lafayette, IN" loading="lazy">
+    <span class="thumb-caption">Cathy, Jim, Nancy, Ian, Tigon, Jen, Lyle
+~1988
+Hawthorne Ridge Dr., W. Lafayette, IN</span>
+  </div>
+  <div class="thumb" onclick="show(156)" tabindex="0" onkeydown="if(event.key==='Enter')show(156)" role="button" aria-label="Jim, Tigon
+Jan. 1986
+Cortez Dr., W. Lafayette, IN" title="Jim, Tigon
+Jan. 1986
+Cortez Dr., W. Lafayette, IN">
+    <img src="thumbs/Scan2025-04-07_203918.jpg" alt="Jim, Tigon
+Jan. 1986
+Cortez Dr., W. Lafayette, IN" loading="lazy">
+    <span class="thumb-caption">Jim, Tigon
+Jan. 1986
+Cortez Dr., W. Lafayette, IN</span>
+  </div>
+  <div class="thumb" onclick="show(157)" tabindex="0" onkeydown="if(event.key==='Enter')show(157)" role="button" aria-label="Jen, Jim, Tigon
+1986
+Hawthorne Ridge Dr., W. Lafayette, IN" title="Jen, Jim, Tigon
+1986
+Hawthorne Ridge Dr., W. Lafayette, IN">
+    <img src="thumbs/Scan2025-04-07_203944.jpg" alt="Jen, Jim, Tigon
+1986
+Hawthorne Ridge Dr., W. Lafayette, IN" loading="lazy">
+    <span class="thumb-caption">Jen, Jim, Tigon
+1986
+Hawthorne Ridge Dr., W. Lafayette, IN</span>
+  </div>
+  <div class="thumb" onclick="show(158)" tabindex="0" onkeydown="if(event.key==='Enter')show(158)" role="button" aria-label="Mark, Mike, Lisa, Jim
+Tigon
+~1988
+Hawthorne Ridge Dr., W. Lafayette, IN" title="Mark, Mike, Lisa, Jim
+Tigon
+~1988
+Hawthorne Ridge Dr., W. Lafayette, IN">
+    <img src="thumbs/Scan2025-04-07_204012.jpg" alt="Mark, Mike, Lisa, Jim
+Tigon
+~1988
+Hawthorne Ridge Dr., W. Lafayette, IN" loading="lazy">
+    <span class="thumb-caption">Mark, Mike, Lisa, Jim
+Tigon
+~1988
+Hawthorne Ridge Dr., W. Lafayette, IN</span>
+  </div>
+  <div class="thumb" onclick="show(159)" tabindex="0" onkeydown="if(event.key==='Enter')show(159)" role="button" aria-label="Nancy, Ian, Jim, Alex, Cathy, Lyle
+Bluefin Cir., Indianpolis, IN" title="Nancy, Ian, Jim, Alex, Cathy, Lyle
+Bluefin Cir., Indianpolis, IN">
+    <img src="thumbs/Scan2025-04-07_204039.jpg" alt="Nancy, Ian, Jim, Alex, Cathy, Lyle
+Bluefin Cir., Indianpolis, IN" loading="lazy">
+    <span class="thumb-caption">Nancy, Ian, Jim, Alex, Cathy, Lyle
+Bluefin Cir., Indianpolis, IN</span>
+  </div>
+  <div class="thumb" onclick="show(160)" tabindex="0" onkeydown="if(event.key==='Enter')show(160)" role="button" aria-label="Lyle
+Happy  Hollow Park, W. Lafayette, IN
+~1985" title="Lyle
+Happy  Hollow Park, W. Lafayette, IN
+~1985">
+    <img src="thumbs/Scan2025-04-07_204108.jpg" alt="Lyle
+Happy  Hollow Park, W. Lafayette, IN
+~1985" loading="lazy">
+    <span class="thumb-caption">Lyle
+Happy  Hollow Park, W. Lafayette, IN
+~1985</span>
+  </div>
+  <div class="thumb" onclick="show(161)" tabindex="0" onkeydown="if(event.key==='Enter')show(161)" role="button" aria-label="Lisa, Tigon, Lyle
+Happy  Hollow Park, W. Lafayette, IN
+~1985" title="Lisa, Tigon, Lyle
+Happy  Hollow Park, W. Lafayette, IN
+~1985">
+    <img src="thumbs/Scan2025-04-07_204135.jpg" alt="Lisa, Tigon, Lyle
+Happy  Hollow Park, W. Lafayette, IN
+~1985" loading="lazy">
+    <span class="thumb-caption">Lisa, Tigon, Lyle
+Happy  Hollow Park, W. Lafayette, IN
+~1985</span>
+  </div>
+  <div class="thumb" onclick="show(162)" tabindex="0" onkeydown="if(event.key==='Enter')show(162)" role="button" aria-label="Lisa, Grandpa Wilson, Jen
+Hawthorne Ridge, W. Lafayette, IN" title="Lisa, Grandpa Wilson, Jen
+Hawthorne Ridge, W. Lafayette, IN">
+    <img src="thumbs/Scan2025-04-07_204219.jpg" alt="Lisa, Grandpa Wilson, Jen
+Hawthorne Ridge, W. Lafayette, IN" loading="lazy">
+    <span class="thumb-caption">Lisa, Grandpa Wilson, Jen
+Hawthorne Ridge, W. Lafayette, IN</span>
+  </div>
+  <div class="thumb" onclick="show(163)" tabindex="0" onkeydown="if(event.key==='Enter')show(163)" role="button" aria-label="1st day of school Sept 1969
+Gushwa Dr., Lafayette, IN" title="1st day of school Sept 1969
+Gushwa Dr., Lafayette, IN">
+    <img src="thumbs/Scan2025-04-07_204249.jpg" alt="1st day of school Sept 1969
+Gushwa Dr., Lafayette, IN" loading="lazy">
+    <span class="thumb-caption">1st day of school Sept 1969
+Gushwa Dr., Lafayette, IN</span>
+  </div>
+  <div class="thumb" onclick="show(164)" tabindex="0" onkeydown="if(event.key==='Enter')show(164)" role="button" aria-label="1987
+Columbia, South Carolina" title="1987
+Columbia, South Carolina">
+    <img src="thumbs/Scan2025-04-07_204318.jpg" alt="1987
+Columbia, South Carolina" loading="lazy">
+    <span class="thumb-caption">1987
+Columbia, South Carolina</span>
+  </div>
+  <div class="thumb" onclick="show(165)" tabindex="0" onkeydown="if(event.key==='Enter')show(165)" role="button" aria-label="Kenny B. Wilson, Lisa, Geneva Wilson
+High School Graduation 1982
+Hawthorne Ridge Dr., W. Lafayette, IN" title="Kenny B. Wilson, Lisa, Geneva Wilson
+High School Graduation 1982
+Hawthorne Ridge Dr., W. Lafayette, IN">
+    <img src="thumbs/Scan2025-04-07_204357.jpg" alt="Kenny B. Wilson, Lisa, Geneva Wilson
+High School Graduation 1982
+Hawthorne Ridge Dr., W. Lafayette, IN" loading="lazy">
+    <span class="thumb-caption">Kenny B. Wilson, Lisa, Geneva Wilson
+High School Graduation 1982
+Hawthorne Ridge Dr., W. Lafayette, IN</span>
+  </div>
+  <div class="thumb" onclick="show(166)" tabindex="0" onkeydown="if(event.key==='Enter')show(166)" role="button" aria-label="Kenny B. Wilson, Lisa, Geneva Wilson
+High School Graduation 1982
+Hawthorne Ridge Dr., W. Lafayette, IN" title="Kenny B. Wilson, Lisa, Geneva Wilson
+High School Graduation 1982
+Hawthorne Ridge Dr., W. Lafayette, IN">
+    <img src="thumbs/Scan2025-04-07_204424.jpg" alt="Kenny B. Wilson, Lisa, Geneva Wilson
+High School Graduation 1982
+Hawthorne Ridge Dr., W. Lafayette, IN" loading="lazy">
+    <span class="thumb-caption">Kenny B. Wilson, Lisa, Geneva Wilson
+High School Graduation 1982
+Hawthorne Ridge Dr., W. Lafayette, IN</span>
+  </div>
+  <div class="thumb" onclick="show(167)" tabindex="0" onkeydown="if(event.key==='Enter')show(167)" role="button" aria-label="Lisa
+High School Graduation 1982
+Hawthorne Ridge Dr., W. Lafayette, IN" title="Lisa
+High School Graduation 1982
+Hawthorne Ridge Dr., W. Lafayette, IN">
+    <img src="thumbs/Scan2025-04-07_204451.jpg" alt="Lisa
+High School Graduation 1982
+Hawthorne Ridge Dr., W. Lafayette, IN" loading="lazy">
+    <span class="thumb-caption">Lisa
+High School Graduation 1982
+Hawthorne Ridge Dr., W. Lafayette, IN</span>
+  </div>
+  <div class="thumb" onclick="show(168)" tabindex="0" onkeydown="if(event.key==='Enter')show(168)" role="button" aria-label="Wilson farmstead
+Williamsport, IN" title="Wilson farmstead
+Williamsport, IN">
+    <img src="thumbs/Scan2025-04-07_204520.jpg" alt="Wilson farmstead
+Williamsport, IN" loading="lazy">
+    <span class="thumb-caption">Wilson farmstead
+Williamsport, IN</span>
+  </div>
+  <div class="thumb" onclick="show(169)" tabindex="0" onkeydown="if(event.key==='Enter')show(169)" role="button" aria-label="Lady (dog)
+~1981
+Hawthorne Ridge Dr., W. Lafayette, IN" title="Lady (dog)
+~1981
+Hawthorne Ridge Dr., W. Lafayette, IN">
+    <img src="thumbs/Scan2025-04-07_204550.jpg" alt="Lady (dog)
+~1981
+Hawthorne Ridge Dr., W. Lafayette, IN" loading="lazy">
+    <span class="thumb-caption">Lady (dog)
+~1981
+Hawthorne Ridge Dr., W. Lafayette, IN</span>
+  </div>
+  <div class="thumb" onclick="show(170)" tabindex="0" onkeydown="if(event.key==='Enter')show(170)" role="button" aria-label="Tigon, Kenny B. Wilson
+~1984
+Williamsport, IN" title="Tigon, Kenny B. Wilson
+~1984
+Williamsport, IN">
+    <img src="thumbs/Scan2025-04-07_204619.jpg" alt="Tigon, Kenny B. Wilson
+~1984
+Williamsport, IN" loading="lazy">
+    <span class="thumb-caption">Tigon, Kenny B. Wilson
+~1984
+Williamsport, IN</span>
+  </div>
+  <div class="thumb" onclick="show(171)" tabindex="0" onkeydown="if(event.key==='Enter')show(171)" role="button" aria-label="Lisa - 1979
+15 1/2" title="Lisa - 1979
+15 1/2">
+    <img src="thumbs/Scan2025-04-07_204641.jpg" alt="Lisa - 1979
+15 1/2" loading="lazy">
+    <span class="thumb-caption">Lisa - 1979
+15 1/2</span>
+  </div>
+  <div class="thumb" onclick="show(172)" tabindex="0" onkeydown="if(event.key==='Enter')show(172)" role="button" aria-label="Lady
+Hawthorne Ridge Dr., W. Lafayette, IN" title="Lady
+Hawthorne Ridge Dr., W. Lafayette, IN">
+    <img src="thumbs/Scan2025-04-07_204701.jpg" alt="Lady
+Hawthorne Ridge Dr., W. Lafayette, IN" loading="lazy">
+    <span class="thumb-caption">Lady
+Hawthorne Ridge Dr., W. Lafayette, IN</span>
+  </div>
+  <div class="thumb" onclick="show(173)" tabindex="0" onkeydown="if(event.key==='Enter')show(173)" role="button" aria-label="(in back) Cathy, Alex
+Jen, Ethan, Lisa
+2006
+Ames, IA" title="(in back) Cathy, Alex
+Jen, Ethan, Lisa
+2006
+Ames, IA">
+    <img src="thumbs/Scan2025-04-07_204730.jpg" alt="(in back) Cathy, Alex
+Jen, Ethan, Lisa
+2006
+Ames, IA" loading="lazy">
+    <span class="thumb-caption">(in back) Cathy, Alex
+Jen, Ethan, Lisa
+2006
+Ames, IA</span>
+  </div>
+  <div class="thumb" onclick="show(174)" tabindex="0" onkeydown="if(event.key==='Enter')show(174)" role="button" aria-label="Wilson farmstead" title="Wilson farmstead">
+    <img src="thumbs/Scan2025-04-07_204758.jpg" alt="Wilson farmstead" loading="lazy">
+    <span class="thumb-caption">Wilson farmstead</span>
+  </div>
+  <div class="thumb" onclick="show(175)" tabindex="0" onkeydown="if(event.key==='Enter')show(175)" role="button" aria-label="Wilson farmstead" title="Wilson farmstead">
+    <img src="thumbs/Scan2025-04-07_204821.jpg" alt="Wilson farmstead" loading="lazy">
+    <span class="thumb-caption">Wilson farmstead</span>
+  </div>
+  <div class="thumb" onclick="show(176)" tabindex="0" onkeydown="if(event.key==='Enter')show(176)" role="button" aria-label="Jen, Tigon, Mike
+Jen&#x27;s college graduation" title="Jen, Tigon, Mike
+Jen&#x27;s college graduation">
+    <img src="thumbs/Scan2025-04-07_204847.jpg" alt="Jen, Tigon, Mike
+Jen&#x27;s college graduation" loading="lazy">
+    <span class="thumb-caption">Jen, Tigon, Mike
+Jen&#x27;s college graduation</span>
+  </div>
+  <div class="thumb" onclick="show(177)" tabindex="0" onkeydown="if(event.key==='Enter')show(177)" role="button" aria-label="Nancy, Lisa, Tigon
+2006" title="Nancy, Lisa, Tigon
+2006">
+    <img src="thumbs/Scan2025-04-07_204915.jpg" alt="Nancy, Lisa, Tigon
+2006" loading="lazy">
+    <span class="thumb-caption">Nancy, Lisa, Tigon
+2006</span>
+  </div>
+  <div class="thumb" onclick="show(178)" tabindex="0" onkeydown="if(event.key==='Enter')show(178)" role="button" aria-label="Lisa
+Gushwa Dr., Lafayette, IN" title="Lisa
+Gushwa Dr., Lafayette, IN">
+    <img src="thumbs/Scan2025-04-07_204945.jpg" alt="Lisa
+Gushwa Dr., Lafayette, IN" loading="lazy">
+    <span class="thumb-caption">Lisa
+Gushwa Dr., Lafayette, IN</span>
+  </div>
+  <div class="thumb" onclick="show(179)" tabindex="0" onkeydown="if(event.key==='Enter')show(179)" role="button" aria-label="Lisa
+May 1964" title="Lisa
+May 1964">
+    <img src="thumbs/Scan2025-04-07_205011.jpg" alt="Lisa
+May 1964" loading="lazy">
+    <span class="thumb-caption">Lisa
+May 1964</span>
+  </div>
+  <div class="thumb" onclick="show(180)" tabindex="0" onkeydown="if(event.key==='Enter')show(180)" role="button" aria-label="Lisa
+First day of school, 1970
+Gushwa Dr., Lafayette, IN" title="Lisa
+First day of school, 1970
+Gushwa Dr., Lafayette, IN">
+    <img src="thumbs/Scan2025-04-07_205034.jpg" alt="Lisa
+First day of school, 1970
+Gushwa Dr., Lafayette, IN" loading="lazy">
+    <span class="thumb-caption">Lisa
+First day of school, 1970
+Gushwa Dr., Lafayette, IN</span>
+  </div>
+  <div class="thumb" onclick="show(181)" tabindex="0" onkeydown="if(event.key==='Enter')show(181)" role="button" aria-label="Lisa
+April 1971
+Gushwa Dr., Lafayette, IN" title="Lisa
+April 1971
+Gushwa Dr., Lafayette, IN">
+    <img src="thumbs/Scan2025-04-07_205055.jpg" alt="Lisa
+April 1971
+Gushwa Dr., Lafayette, IN" loading="lazy">
+    <span class="thumb-caption">Lisa
+April 1971
+Gushwa Dr., Lafayette, IN</span>
+  </div>
+  <div class="thumb" onclick="show(182)" tabindex="0" onkeydown="if(event.key==='Enter')show(182)" role="button" aria-label="Lisa, Tammy Wethington (friend)
+Oct 1970
+Gushwa Dr., Lafayette, IN" title="Lisa, Tammy Wethington (friend)
+Oct 1970
+Gushwa Dr., Lafayette, IN">
+    <img src="thumbs/Scan2025-04-07_205117.jpg" alt="Lisa, Tammy Wethington (friend)
+Oct 1970
+Gushwa Dr., Lafayette, IN" loading="lazy">
+    <span class="thumb-caption">Lisa, Tammy Wethington (friend)
+Oct 1970
+Gushwa Dr., Lafayette, IN</span>
+  </div>
+  <div class="thumb" onclick="show(183)" tabindex="0" onkeydown="if(event.key==='Enter')show(183)" role="button" aria-label="Lisa and first bike
+1969
+Gushwa Dr., Lafayette, IN" title="Lisa and first bike
+1969
+Gushwa Dr., Lafayette, IN">
+    <img src="thumbs/Scan2025-04-07_205140.jpg" alt="Lisa and first bike
+1969
+Gushwa Dr., Lafayette, IN" loading="lazy">
+    <span class="thumb-caption">Lisa and first bike
+1969
+Gushwa Dr., Lafayette, IN</span>
+  </div>
+  <div class="thumb" onclick="show(184)" tabindex="0" onkeydown="if(event.key==='Enter')show(184)" role="button" aria-label="Becky Haynes, Ellen (Sissy) Haynes, Gary Wilson, Lisa, Kenny B. Wilson
+March 1971
+Gushwa Dr., Lafayette, IN" title="Becky Haynes, Ellen (Sissy) Haynes, Gary Wilson, Lisa, Kenny B. Wilson
+March 1971
+Gushwa Dr., Lafayette, IN">
+    <img src="thumbs/Scan2025-04-07_205206.jpg" alt="Becky Haynes, Ellen (Sissy) Haynes, Gary Wilson, Lisa, Kenny B. Wilson
+March 1971
+Gushwa Dr., Lafayette, IN" loading="lazy">
+    <span class="thumb-caption">Becky Haynes, Ellen (Sissy) Haynes, Gary Wilson, Lisa, Kenny B. Wilson
+March 1971
+Gushwa Dr., Lafayette, IN</span>
+  </div>
+  <div class="thumb" onclick="show(185)" tabindex="0" onkeydown="if(event.key==='Enter')show(185)" role="button" aria-label="Jen, Lisa
+Feb. 1971" title="Jen, Lisa
+Feb. 1971">
+    <img src="thumbs/Scan2025-04-07_205230.jpg" alt="Jen, Lisa
+Feb. 1971" loading="lazy">
+    <span class="thumb-caption">Jen, Lisa
+Feb. 1971</span>
+  </div>
+  <div class="thumb" onclick="show(186)" tabindex="0" onkeydown="if(event.key==='Enter')show(186)" role="button" aria-label="Unknown, Lisa
+Sept 1965" title="Unknown, Lisa
+Sept 1965">
+    <img src="thumbs/Scan2025-04-07_205253.jpg" alt="Unknown, Lisa
+Sept 1965" loading="lazy">
+    <span class="thumb-caption">Unknown, Lisa
+Sept 1965</span>
+  </div>
+  <div class="thumb" onclick="show(187)" tabindex="0" onkeydown="if(event.key==='Enter')show(187)" role="button" aria-label="Lisa
+Easter 1966
+Cole farmstead, Williamsport, IN" title="Lisa
+Easter 1966
+Cole farmstead, Williamsport, IN">
+    <img src="thumbs/Scan2025-04-07_205317.jpg" alt="Lisa
+Easter 1966
+Cole farmstead, Williamsport, IN" loading="lazy">
+    <span class="thumb-caption">Lisa
+Easter 1966
+Cole farmstead, Williamsport, IN</span>
+  </div>
+  <div class="thumb" onclick="show(188)" tabindex="0" onkeydown="if(event.key==='Enter')show(188)" role="button" aria-label="Lisa, Puff 
+September 1969
+Gushwa Dr., Lafayette, IN" title="Lisa, Puff 
+September 1969
+Gushwa Dr., Lafayette, IN">
+    <img src="thumbs/Scan2025-04-07_205341.jpg" alt="Lisa, Puff 
+September 1969
+Gushwa Dr., Lafayette, IN" loading="lazy">
+    <span class="thumb-caption">Lisa, Puff 
+September 1969
+Gushwa Dr., Lafayette, IN</span>
+  </div>
+  <div class="thumb" onclick="show(189)" tabindex="0" onkeydown="if(event.key==='Enter')show(189)" role="button" aria-label="Lisa
+Kindergarten 1969" title="Lisa
+Kindergarten 1969">
+    <img src="thumbs/Scan2025-04-07_205404.jpg" alt="Lisa
+Kindergarten 1969" loading="lazy">
+    <span class="thumb-caption">Lisa
+Kindergarten 1969</span>
+  </div>
+  <div class="thumb" onclick="show(190)" tabindex="0" onkeydown="if(event.key==='Enter')show(190)" role="button" aria-label="Lisa
+First grade 1970" title="Lisa
+First grade 1970">
+    <img src="thumbs/Scan2025-04-07_205432.jpg" alt="Lisa
+First grade 1970" loading="lazy">
+    <span class="thumb-caption">Lisa
+First grade 1970</span>
+  </div>
+  <div class="thumb" onclick="show(191)" tabindex="0" onkeydown="if(event.key==='Enter')show(191)" role="button" aria-label="Lisa
+July 1966
+Gushwa Dr., Lafayette, IN" title="Lisa
+July 1966
+Gushwa Dr., Lafayette, IN">
+    <img src="thumbs/Scan2025-04-07_205455.jpg" alt="Lisa
+July 1966
+Gushwa Dr., Lafayette, IN" loading="lazy">
+    <span class="thumb-caption">Lisa
+July 1966
+Gushwa Dr., Lafayette, IN</span>
+  </div>
+  <div class="thumb" onclick="show(192)" tabindex="0" onkeydown="if(event.key==='Enter')show(192)" role="button" aria-label="Nancy, Lisa
+2006
+S. 500th, Ames, IA" title="Nancy, Lisa
+2006
+S. 500th, Ames, IA">
+    <img src="thumbs/Scan2025-04-07_210038.jpg" alt="Nancy, Lisa
+2006
+S. 500th, Ames, IA" loading="lazy">
+    <span class="thumb-caption">Nancy, Lisa
+2006
+S. 500th, Ames, IA</span>
+  </div>
+  <div class="thumb" onclick="show(193)" tabindex="0" onkeydown="if(event.key==='Enter')show(193)" role="button" aria-label="Lisa, Jen (holding Ethan), Nancy, Cathy
+Tigon&#x27;s wedding
+July 15, 2006, Nevada, IA" title="Lisa, Jen (holding Ethan), Nancy, Cathy
+Tigon&#x27;s wedding
+July 15, 2006, Nevada, IA">
+    <img src="thumbs/Scan2025-04-07_210129.jpg" alt="Lisa, Jen (holding Ethan), Nancy, Cathy
+Tigon&#x27;s wedding
+July 15, 2006, Nevada, IA" loading="lazy">
+    <span class="thumb-caption">Lisa, Jen (holding Ethan), Nancy, Cathy
+Tigon&#x27;s wedding
+July 15, 2006, Nevada, IA</span>
+  </div>
+  <div class="thumb" onclick="show(194)" tabindex="0" onkeydown="if(event.key==='Enter')show(194)" role="button" aria-label="Cathy, Lisa, Geneva Wilson, Randy, Jen
+Bluefin Cir., Indianapolis, IN" title="Cathy, Lisa, Geneva Wilson, Randy, Jen
+Bluefin Cir., Indianapolis, IN">
+    <img src="thumbs/Scan2025-04-07_210204.jpg" alt="Cathy, Lisa, Geneva Wilson, Randy, Jen
+Bluefin Cir., Indianapolis, IN" loading="lazy">
+    <span class="thumb-caption">Cathy, Lisa, Geneva Wilson, Randy, Jen
+Bluefin Cir., Indianapolis, IN</span>
+  </div>
+  <div class="thumb" onclick="show(195)" tabindex="0" onkeydown="if(event.key==='Enter')show(195)" role="button" aria-label="Randy, Cathy, Ian, Mike, Lisa, Mark, Tigon, Jim, Nancy
+1987
+Hawthorne Ridge Dr., W. Lafayette, IN" title="Randy, Cathy, Ian, Mike, Lisa, Mark, Tigon, Jim, Nancy
+1987
+Hawthorne Ridge Dr., W. Lafayette, IN">
+    <img src="thumbs/Scan2025-04-07_210234.jpg" alt="Randy, Cathy, Ian, Mike, Lisa, Mark, Tigon, Jim, Nancy
+1987
+Hawthorne Ridge Dr., W. Lafayette, IN" loading="lazy">
+    <span class="thumb-caption">Randy, Cathy, Ian, Mike, Lisa, Mark, Tigon, Jim, Nancy
+1987
+Hawthorne Ridge Dr., W. Lafayette, IN</span>
+  </div>
+  <div class="thumb" onclick="show(196)" tabindex="0" onkeydown="if(event.key==='Enter')show(196)" role="button" aria-label="Nancy, Jen, Lisa, Cathy, Jim
+Hoover Rd., Rochester, NY
+1999" title="Nancy, Jen, Lisa, Cathy, Jim
+Hoover Rd., Rochester, NY
+1999">
+    <img src="thumbs/Scan2025-04-07_210304.jpg" alt="Nancy, Jen, Lisa, Cathy, Jim
+Hoover Rd., Rochester, NY
+1999" loading="lazy">
+    <span class="thumb-caption">Nancy, Jen, Lisa, Cathy, Jim
+Hoover Rd., Rochester, NY
+1999</span>
+  </div>
+  <div class="thumb" onclick="show(197)" tabindex="0" onkeydown="if(event.key==='Enter')show(197)" role="button" aria-label="Lisa, Nancy
+S. 500th Ave., Ames, IA
+2006" title="Lisa, Nancy
+S. 500th Ave., Ames, IA
+2006">
+    <img src="thumbs/Scan2025-04-07_210334.jpg" alt="Lisa, Nancy
+S. 500th Ave., Ames, IA
+2006" loading="lazy">
+    <span class="thumb-caption">Lisa, Nancy
+S. 500th Ave., Ames, IA
+2006</span>
+  </div>
+  <div class="thumb" onclick="show(198)" tabindex="0" onkeydown="if(event.key==='Enter')show(198)" role="button" aria-label="Nancy, Jen, Lisa, Cathy
+Hoover Rd., Rochester, NY
+1999" title="Nancy, Jen, Lisa, Cathy
+Hoover Rd., Rochester, NY
+1999">
+    <img src="thumbs/Scan2025-04-07_210401.jpg" alt="Nancy, Jen, Lisa, Cathy
+Hoover Rd., Rochester, NY
+1999" loading="lazy">
+    <span class="thumb-caption">Nancy, Jen, Lisa, Cathy
+Hoover Rd., Rochester, NY
+1999</span>
+  </div>
+  <div class="thumb" onclick="show(199)" tabindex="0" onkeydown="if(event.key==='Enter')show(199)" role="button" aria-label="Jen, Tigon, Mark, Lisa, Nancy
+~1990
+Pedestrian brridge over Genesee River, Rochester, NY" title="Jen, Tigon, Mark, Lisa, Nancy
+~1990
+Pedestrian brridge over Genesee River, Rochester, NY">
+    <img src="thumbs/Scan2025-04-07_210431.jpg" alt="Jen, Tigon, Mark, Lisa, Nancy
+~1990
+Pedestrian brridge over Genesee River, Rochester, NY" loading="lazy">
+    <span class="thumb-caption">Jen, Tigon, Mark, Lisa, Nancy
+~1990
+Pedestrian brridge over Genesee River, Rochester, NY</span>
+  </div>
+  <div class="thumb" onclick="show(200)" tabindex="0" onkeydown="if(event.key==='Enter')show(200)" role="button" aria-label="Riorden telling Granny all about the book. Indy July 2013" title="Riorden telling Granny all about the book. Indy July 2013">
+    <img src="thumbs/Scan2025-04-07_210503.jpg" alt="Riorden telling Granny all about the book. Indy July 2013" loading="lazy">
+    <span class="thumb-caption">Riorden telling Granny all about the book. Indy July 2013</span>
+  </div>
+  <div class="thumb" onclick="show(201)" tabindex="0" onkeydown="if(event.key==='Enter')show(201)" role="button" aria-label="Rioden showing Pop that big frog!
+Bluefin Cir., Indianpolis, IN" title="Rioden showing Pop that big frog!
+Bluefin Cir., Indianpolis, IN">
+    <img src="thumbs/Scan2025-04-07_210533.jpg" alt="Rioden showing Pop that big frog!
+Bluefin Cir., Indianpolis, IN" loading="lazy">
+    <span class="thumb-caption">Rioden showing Pop that big frog!
+Bluefin Cir., Indianpolis, IN</span>
+  </div>
+  <div class="thumb" onclick="show(202)" tabindex="0" onkeydown="if(event.key==='Enter')show(202)" role="button" aria-label="Jen, Tigon, Lisa (Ethan in stroller)
+2006
+Nevada, IA" title="Jen, Tigon, Lisa (Ethan in stroller)
+2006
+Nevada, IA">
+    <img src="thumbs/Scan2025-04-07_210600.jpg" alt="Jen, Tigon, Lisa (Ethan in stroller)
+2006
+Nevada, IA" loading="lazy">
+    <span class="thumb-caption">Jen, Tigon, Lisa (Ethan in stroller)
+2006
+Nevada, IA</span>
+  </div>
+  <div class="thumb" onclick="show(203)" tabindex="0" onkeydown="if(event.key==='Enter')show(203)" role="button" aria-label="Tigon, Ian
+1988
+Hawthorne Ridge Dr., W. Lafayette, IN" title="Tigon, Ian
+1988
+Hawthorne Ridge Dr., W. Lafayette, IN">
+    <img src="thumbs/Scan2025-04-07_210628.jpg" alt="Tigon, Ian
+1988
+Hawthorne Ridge Dr., W. Lafayette, IN" loading="lazy">
+    <span class="thumb-caption">Tigon, Ian
+1988
+Hawthorne Ridge Dr., W. Lafayette, IN</span>
+  </div>
+  <div class="thumb" onclick="show(204)" tabindex="0" onkeydown="if(event.key==='Enter')show(204)" role="button" aria-label="Cindy Wilson, Kenny B. Wilson
+Wilson farmstead, Williamsport, IN" title="Cindy Wilson, Kenny B. Wilson
+Wilson farmstead, Williamsport, IN">
+    <img src="thumbs/Scan2025-04-07_210711.jpg" alt="Cindy Wilson, Kenny B. Wilson
+Wilson farmstead, Williamsport, IN" loading="lazy">
+    <span class="thumb-caption">Cindy Wilson, Kenny B. Wilson
+Wilson farmstead, Williamsport, IN</span>
+  </div>
+  <div class="thumb" onclick="show(205)" tabindex="0" onkeydown="if(event.key==='Enter')show(205)" role="button" aria-label="Kenny B. Wilson
+Wilson farmstead, Williamsport, IN" title="Kenny B. Wilson
+Wilson farmstead, Williamsport, IN">
+    <img src="thumbs/Scan2025-04-07_210737.jpg" alt="Kenny B. Wilson
+Wilson farmstead, Williamsport, IN" loading="lazy">
+    <span class="thumb-caption">Kenny B. Wilson
+Wilson farmstead, Williamsport, IN</span>
+  </div>
+  <div class="thumb" onclick="show(206)" tabindex="0" onkeydown="if(event.key==='Enter')show(206)" role="button" aria-label="Kenny B. Wilson
+Wilson farmstead, Williamsport, IN" title="Kenny B. Wilson
+Wilson farmstead, Williamsport, IN">
+    <img src="thumbs/Scan2025-04-07_210800.jpg" alt="Kenny B. Wilson
+Wilson farmstead, Williamsport, IN" loading="lazy">
+    <span class="thumb-caption">Kenny B. Wilson
+Wilson farmstead, Williamsport, IN</span>
+  </div>
+  <div class="thumb" onclick="show(207)" tabindex="0" onkeydown="if(event.key==='Enter')show(207)" role="button" aria-label="Cindy Wilson
+Wilson farmstead, Williamsport, IN
+~1956" title="Cindy Wilson
+Wilson farmstead, Williamsport, IN
+~1956">
+    <img src="thumbs/Scan2025-04-07_210822.jpg" alt="Cindy Wilson
+Wilson farmstead, Williamsport, IN
+~1956" loading="lazy">
+    <span class="thumb-caption">Cindy Wilson
+Wilson farmstead, Williamsport, IN
+~1956</span>
+  </div>
+  <div class="thumb" onclick="show(208)" tabindex="0" onkeydown="if(event.key==='Enter')show(208)" role="button" aria-label="Wilson farmstead, Williamsport, IN" title="Wilson farmstead, Williamsport, IN">
+    <img src="thumbs/Scan2025-04-07_210845.jpg" alt="Wilson farmstead, Williamsport, IN" loading="lazy">
+    <span class="thumb-caption">Wilson farmstead, Williamsport, IN</span>
+  </div>
+  <div class="thumb" onclick="show(209)" tabindex="0" onkeydown="if(event.key==='Enter')show(209)" role="button" aria-label="Wilson farmstead, Williamsport, IN" title="Wilson farmstead, Williamsport, IN">
+    <img src="thumbs/Scan2025-04-07_210909.jpg" alt="Wilson farmstead, Williamsport, IN" loading="lazy">
+    <span class="thumb-caption">Wilson farmstead, Williamsport, IN</span>
+  </div>
+  <div class="thumb" onclick="show(210)" tabindex="0" onkeydown="if(event.key==='Enter')show(210)" role="button" aria-label="Kenny B. Wilson
+Wilson farmstead, Williamsport, IN" title="Kenny B. Wilson
+Wilson farmstead, Williamsport, IN">
+    <img src="thumbs/Scan2025-04-07_210947.jpg" alt="Kenny B. Wilson
+Wilson farmstead, Williamsport, IN" loading="lazy">
+    <span class="thumb-caption">Kenny B. Wilson
+Wilson farmstead, Williamsport, IN</span>
+  </div>
+  <div class="thumb" onclick="show(211)" tabindex="0" onkeydown="if(event.key==='Enter')show(211)" role="button" aria-label="Nancy Wilson
+Summer 1956
+Wilson farmstead, Williamsport, IN" title="Nancy Wilson
+Summer 1956
+Wilson farmstead, Williamsport, IN">
+    <img src="thumbs/Scan2025-04-07_211012.jpg" alt="Nancy Wilson
+Summer 1956
+Wilson farmstead, Williamsport, IN" loading="lazy">
+    <span class="thumb-caption">Nancy Wilson
+Summer 1956
+Wilson farmstead, Williamsport, IN</span>
+  </div>
+  <div class="thumb" onclick="show(212)" tabindex="0" onkeydown="if(event.key==='Enter')show(212)" role="button" aria-label="Nancy Wilson
+Summer 1956
+Wilson farmstead, Williamsport, IN" title="Nancy Wilson
+Summer 1956
+Wilson farmstead, Williamsport, IN">
+    <img src="thumbs/Scan2025-04-07_211041.jpg" alt="Nancy Wilson
+Summer 1956
+Wilson farmstead, Williamsport, IN" loading="lazy">
+    <span class="thumb-caption">Nancy Wilson
+Summer 1956
+Wilson farmstead, Williamsport, IN</span>
+  </div>
+  <div class="thumb" onclick="show(213)" tabindex="0" onkeydown="if(event.key==='Enter')show(213)" role="button" aria-label="Nancy Wilson
+Summer 1956
+Wilson farmstead, Williamsport, IN" title="Nancy Wilson
+Summer 1956
+Wilson farmstead, Williamsport, IN">
+    <img src="thumbs/Scan2025-04-07_211108.jpg" alt="Nancy Wilson
+Summer 1956
+Wilson farmstead, Williamsport, IN" loading="lazy">
+    <span class="thumb-caption">Nancy Wilson
+Summer 1956
+Wilson farmstead, Williamsport, IN</span>
+  </div>
+  <div class="thumb" onclick="show(214)" tabindex="0" onkeydown="if(event.key==='Enter')show(214)" role="button" aria-label="unknown
+Summer 1956
+Wilson farmstead, Williamsport, IN" title="unknown
+Summer 1956
+Wilson farmstead, Williamsport, IN">
+    <img src="thumbs/Scan2025-04-07_211134.jpg" alt="unknown
+Summer 1956
+Wilson farmstead, Williamsport, IN" loading="lazy">
+    <span class="thumb-caption">unknown
+Summer 1956
+Wilson farmstead, Williamsport, IN</span>
+  </div>
+  <div class="thumb" onclick="show(215)" tabindex="0" onkeydown="if(event.key==='Enter')show(215)" role="button" aria-label="Nancy Wilson" title="Nancy Wilson">
+    <img src="thumbs/Scan2025-04-07_211235.jpg" alt="Nancy Wilson" loading="lazy">
+    <span class="thumb-caption">Nancy Wilson</span>
+  </div>
+  <div class="thumb" onclick="show(216)" tabindex="0" onkeydown="if(event.key==='Enter')show(216)" role="button" aria-label="Black bean hanging at campsite north of Blind River, Ontario" title="Black bean hanging at campsite north of Blind River, Ontario">
+    <img src="thumbs/Scan2025-04-07_211309.jpg" alt="Black bean hanging at campsite north of Blind River, Ontario" loading="lazy">
+    <span class="thumb-caption">Black bean hanging at campsite north of Blind River, Ontario</span>
+  </div>
+  <div class="thumb" onclick="show(217)" tabindex="0" onkeydown="if(event.key==='Enter')show(217)" role="button" aria-label="Jennifer Cole
+~1976" title="Jennifer Cole
+~1976">
+    <img src="thumbs/Scan2025-04-07_211339.jpg" alt="Jennifer Cole
+~1976" loading="lazy">
+    <span class="thumb-caption">Jennifer Cole
+~1976</span>
+  </div>
+  <div class="thumb" onclick="show(218)" tabindex="0" onkeydown="if(event.key==='Enter')show(218)" role="button" aria-label="Kenny B &amp; Geneva Wilson
+50th wedding anniversary" title="Kenny B &amp; Geneva Wilson
+50th wedding anniversary">
+    <img src="thumbs/Wilson wedding anniversary.jpg" alt="Kenny B &amp; Geneva Wilson
+50th wedding anniversary" loading="lazy">
+    <span class="thumb-caption">Kenny B &amp; Geneva Wilson
+50th wedding anniversary</span>
+  </div>
+</div>
+
+<p class="hint">&#x2190; &#x2192; arrow keys or click arrows to navigate &bull; Esc to close</p>
+
+<div id="lightbox" role="dialog" aria-modal="true" aria-label="Photo viewer">
+  <button id="lb-close" aria-label="Close">&times;</button>
+  <button class="lb-btn" id="lb-prev" aria-label="Previous">&#8249;</button>
+  <div id="lb-img-wrap">
+    <img id="lb-img" src="" alt="">
+  </div>
+  <button class="lb-btn" id="lb-next" aria-label="Next">&#8250;</button>
+  <p id="lb-heading"></p>
+  <p id="lb-caption"></p>
+  <p id="lb-filename"></p>
+  <button id="lb-download" class="dl-link">&#8659; Download image</button>
+  <p id="lb-counter"></p>
+</div>
+
+<script>
+const photos = [{"src": "1956.png", "caption": "4818 Hawthorne Ridge Dr. W. Lafayette, IN", "comment": "", "filename": "1956.png"}, {"src": "1973 Hawthorne Ridge.png", "caption": "4818 Hawthorne Ridge Dr. W. Lafayette, IN", "comment": "", "filename": "1973 Hawthorne Ridge.png"}, {"src": "20240407_155757.jpg", "caption": "Cathy, Lisa, Randy\nXmas 1967", "comment": "", "filename": "20240407_155757.jpg"}, {"src": "20240407_155834.jpg", "caption": "Randy, Cathy, Lisa\nXmas 1967", "comment": "", "filename": "20240407_155834.jpg"}, {"src": "20240407_155900.jpg", "caption": "Cathy, Lisa, Jen, Randy\nBluefin Cir., Indianapolis", "comment": "", "filename": "20240407_155900.jpg"}, {"src": "20240407_155914.jpg", "caption": "Cathy, Lisa, Jen, Randy\nBluefin Cir., Indianapolis", "comment": "", "filename": "20240407_155914.jpg"}, {"src": "20240407_155926.jpg", "caption": "Cathy, Lisa, Jen, Randy\nBluefin Cir., Indianapolis", "comment": "", "filename": "20240407_155926.jpg"}, {"src": "20240407_155953.jpg", "caption": "Cathy, Lisa, Geneva, Randy, Jen\nBluefin Cir., Indianapolis", "comment": "", "filename": "20240407_155953.jpg"}, {"src": "20240407_160055.jpg", "caption": "Cathy, Lisa, Geneva, Randy, Jen\nBluefin Cir., Indianapolis", "comment": "", "filename": "20240407_160055.jpg"}, {"src": "20240407_160102.jpg", "caption": "Cathy, Lisa, Geneva, Randy, Jen\nBluefin Cir., Indianapolis", "comment": "", "filename": "20240407_160102.jpg"}, {"src": "20240407_160157.jpg", "caption": "Aunt Cindy, Cathy, Randy\nLisa", "comment": "", "filename": "20240407_160157.jpg"}, {"src": "20240407_160313.jpg", "caption": "Cathy, Tigon, Jen, Randy\nJim & Nancy's 40th anniversary\nBluefin Cir., Indianapolis", "comment": "", "filename": "20240407_160313.jpg"}, {"src": "20240407_160418.jpg", "caption": "Grandma Wilson, Aunt Gladys, Uncle Hub Wilson (white coat)", "comment": "", "filename": "20240407_160418.jpg"}, {"src": "20240407_160422-save.jpg", "caption": "Grandma Wilson, Aunt Gladys, Uncle Hub Wilson (white coat)", "comment": "", "filename": "20240407_160422-save.jpg"}, {"src": "20240407_160422.jpg", "caption": "Grandma Wilson, Aunt Gladys, Uncle Hub Wilson (white coat)", "comment": "", "filename": "20240407_160422.jpg"}, {"src": "20240407_160858.jpg", "caption": "Lisa, Cathy, Randy\nFirst day of school 1970\nGushaw Dr., W. Lafayette, IN", "comment": "", "filename": "20240407_160858.jpg"}, {"src": "20240407_160900.jpg", "caption": "Lisa, Cathy, Randy\nFirst day of school 1970\nGushaw Dr., W. Lafayette, IN", "comment": "", "filename": "20240407_160900.jpg"}, {"src": "20240407_160929.jpg", "caption": "Xmas at Lewis & Lula's", "comment": "", "filename": "20240407_160929.jpg"}, {"src": "20240407_161005.jpg", "caption": "Cathy, Lisa, Randy\nThanksgiving 1967\nGushaw Dr., W. Lafayette, IN", "comment": "", "filename": "20240407_161005.jpg"}, {"src": "20240407_161217.jpg", "caption": "Lisa, Randy, Pokey, Cathy\nSeptember 1969\nGushaw Dr., W. Lafayette, IN", "comment": "", "filename": "20240407_161217.jpg"}, {"src": "20240407_161907.jpg", "caption": "Lisa, Randy, Cathy\n4818 Hawthorne Ridge Dr. W. Lafayette, IN", "comment": "", "filename": "20240407_161907.jpg"}, {"src": "25 years at IBM.png", "caption": "25 yrs @ IBM\nNancy  Jim  Ron Greek", "comment": "", "filename": "25 years at IBM.png"}, {"src": "College graduation May 1961.png", "caption": "College graduation\nMay 1961", "comment": "", "filename": "College graduation May 1961.png"}, {"src": "Columbian Park Monkey Island.png", "caption": "Columbian Park Zoo Monkey Island\nLafayette, IN", "comment": "", "filename": "Columbian Park Monkey Island.png"}, {"src": "Columbian Park.png", "caption": "Columbian Park\nLafayette, IN", "comment": "", "filename": "Columbian Park.png"}, {"src": "IMG_20170126_104710_880.jpg", "caption": "Lisa, Grandpa Wilson, Jen\nHawthorne Ridge, W. Lafayette, IN", "comment": "", "filename": "IMG_20170126_104710_880.jpg"}, {"src": "Jim 4th grade pence.png", "caption": "Jim Cole\n4th Grade\nPence Grade School", "comment": "", "filename": "Jim 4th grade pence.png"}, {"src": "Knotheads.png", "caption": "Lisa, Randy, Cathy\n\"Knotheads'\nMarch 1966\nGushwa Dr, Lafayette, IN", "comment": "", "filename": "Knotheads.png"}, {"src": "Lula Cole.png", "caption": "Lula Cole", "comment": "", "filename": "Lula Cole.png"}, {"src": "May 1953.png", "caption": "Nancy Wilson\nMay 1953", "comment": "", "filename": "May 1953.png"}, {"src": "May 1961.png", "caption": "Jim, Cathy, Nancy, Randy Cole\nMay 61", "comment": "", "filename": "May 1961.png"}, {"src": "Scan2025-04-07_191832.png", "caption": "4818 Hawthorne Ridge Dr. W. Lafayette, IN", "comment": "", "filename": "Scan2025-04-07_191832.png"}, {"src": "Scan2025-04-07_192257.png", "caption": "Kenny B. and Geneva Wilson\nHawthorne Ridge Rd., W. Lafayette, IN", "comment": "", "filename": "Scan2025-04-07_192257.png"}, {"src": "Scan2025-04-07_192345.png", "caption": "Kenny B. Wilson\nHis house, Williamsport, IN.", "comment": "", "filename": "Scan2025-04-07_192345.png"}, {"src": "Scan2025-04-07_192416.png", "caption": "Geneva Wilson\nBluefin Cir., Indianapolis, IN", "comment": "", "filename": "Scan2025-04-07_192416.png"}, {"src": "Scan2025-04-07_192508.png", "caption": "Black Bear \"Mounted\"\nI shot this bean in Canada\n\nLataer, I gave bear to Randy. He was living in a cabin in Pennsylvania at the time. he mounted the bear on the wall in the cabin. It was later destroyed by mites.\n\nJim Cole", "comment": "", "filename": "Scan2025-04-07_192508.png"}, {"src": "Scan2025-04-07_192541.png", "caption": "Kenny B. & Geneva Wilson\nWilliamsport, IN", "comment": "", "filename": "Scan2025-04-07_192541.png"}, {"src": "Scan2025-04-07_192701.png", "caption": "Kenny B Wilson\nDon Wilson\nPeg Kennedy Wilson", "comment": "", "filename": "Scan2025-04-07_192701.png"}, {"src": "Scan2025-04-07_192752.png", "caption": "Lewis Cole and Puff", "comment": "", "filename": "Scan2025-04-07_192752.png"}, {"src": "Scan2025-04-07_192833.png", "caption": "Lewis & Lula Cole\n1959", "comment": "", "filename": "Scan2025-04-07_192833.png"}, {"src": "Scan2025-04-07_192914.png", "caption": "Jen, Lisa, Cathy, Lewis Cole", "comment": "", "filename": "Scan2025-04-07_192914.png"}, {"src": "Scan2025-04-07_192947.png", "caption": "Geneva 1933", "comment": "", "filename": "Scan2025-04-07_192947.png"}, {"src": "Scan2025-04-07_193028.png", "caption": "Geneva", "comment": "", "filename": "Scan2025-04-07_193028.png"}, {"src": "Scan2025-04-07_193056.png", "caption": "Smokey Mountains\nLate 1960s", "comment": "", "filename": "Scan2025-04-07_193056.png"}, {"src": "Scan2025-04-07_193132.png", "caption": "Lula Cole\nAt home, Williamsport, IN", "comment": "", "filename": "Scan2025-04-07_193132.png"}, {"src": "Scan2025-04-07_193222.png", "caption": "Geneva, Don, Nancy Wilson", "comment": "", "filename": "Scan2025-04-07_193222.png"}, {"src": "Scan2025-04-07_193300.png", "caption": "Nancy Wilson", "comment": "", "filename": "Scan2025-04-07_193300.png"}, {"src": "Scan2025-04-07_193331.png", "caption": "Hawthorne Ridge Rd. W. Lafayette, IN.", "comment": "", "filename": "Scan2025-04-07_193331.png"}, {"src": "Scan2025-04-07_193403.png", "caption": "Nancy Cole, Martha Haynes, Jo Cole\nCole Farmstead, ~1970\nWilliamsport, IN", "comment": "", "filename": "Scan2025-04-07_193403.png"}, {"src": "Scan2025-04-07_193447.png", "caption": "Aunt Cindy, Cathy, Randy\nLisa\n~1964", "comment": "", "filename": "Scan2025-04-07_193447.png"}, {"src": "Scan2025-04-07_193520.png", "caption": "Sweepstake Grand Champion Barrow of 1951 4-H fair\nNancy Wilson", "comment": "", "filename": "Scan2025-04-07_193520.png"}, {"src": "Scan2025-04-07_193559.png", "caption": "Jim and Nancy Cole\n1959", "comment": "", "filename": "Scan2025-04-07_193559.png"}, {"src": "Scan2025-04-07_193825.png", "caption": "Sweepstake Grand Champion Barrow of 1951 4-H fair\nNancy Wilson", "comment": "", "filename": "Scan2025-04-07_193825.png"}, {"src": "Scan2025-04-07_193910.png", "caption": "Nancy Wilson", "comment": "", "filename": "Scan2025-04-07_193910.png"}, {"src": "Scan2025-04-07_193939.png", "caption": "Jim and Nancy Cole\nJan. 1957", "comment": "", "filename": "Scan2025-04-07_193939.png"}, {"src": "Scan2025-04-07_194012.png", "caption": "Jim\nLois Trott\nCole Farmstead, Williamsport, IN", "comment": "", "filename": "Scan2025-04-07_194012.png"}, {"src": "Scan2025-04-07_194050.png", "caption": "Jim Cole, Tippy and Rasmussin\nAt east lawn of the Cox place", "comment": "", "filename": "Scan2025-04-07_194050.png"}, {"src": "Scan2025-04-07_194121.png", "caption": "Dick Cole, Lewis Cole, Lula Cole, Jack Cole\nJim Cole, Martha Cole Haynes", "comment": "", "filename": "Scan2025-04-07_194121.png"}, {"src": "Scan2025-04-07_194205.png", "caption": "Lewis Cole\nJim Cole\nEarly 1940's at the Cox farm", "comment": "", "filename": "Scan2025-04-07_194205.png"}, {"src": "Scan2025-04-07_194238.png", "caption": "Jim Cole", "comment": "", "filename": "Scan2025-04-07_194238.png"}, {"src": "Scan2025-04-07_194348.png", "caption": "Jim Cole checking up on a nest of baby birds, probably robins.\nHawthorne Ridge Rd., W. Lafayette, IN\n~1985", "comment": "", "filename": "Scan2025-04-07_194348.png"}, {"src": "Scan2025-04-07_194416.png", "caption": "Jim Cole 1956", "comment": "", "filename": "Scan2025-04-07_194416.png"}, {"src": "Scan2025-04-07_194451.png", "caption": "Jim & his black bear at campsite about 20 miles north of Blind River, Canada.", "comment": "", "filename": "Scan2025-04-07_194451.png"}, {"src": "Scan2025-04-07_194523.png", "caption": "Jim Cole\nHawthorne Ridge Dr., W. Lafayette, IN.", "comment": "", "filename": "Scan2025-04-07_194523.png"}, {"src": "Scan2025-04-07_194554.png", "caption": "Jim Cole\nJudyville School", "comment": "", "filename": "Scan2025-04-07_194554.png"}, {"src": "Scan2025-04-07_194631.png", "caption": "Black bear, killed in woods approximately 15 miles north of Blind River, Ontario", "comment": "", "filename": "Scan2025-04-07_194631.png"}, {"src": "Scan2025-04-07_194756.png", "caption": "Jim Cole\nHawthorne Ridge Dr., W. Lafayette, IN", "comment": "", "filename": "Scan2025-04-07_194756.png"}, {"src": "Scan2025-04-07_194825.png", "caption": "Cathy, Lisa, Geneva, Nancy\nBluefin Cir., Indianapolis", "comment": "", "filename": "Scan2025-04-07_194825.png"}, {"src": "Scan2025-04-07_194855.png", "caption": "Senior Year, 1956-1957 at Williamsport High.\nAvg. 17 PPG.", "comment": "", "filename": "Scan2025-04-07_194855.png"}, {"src": "Scan2025-04-07_194924.png", "caption": "Mark\nRandy, Jim\nMike, Lisa, Jen, Tigon, Nancy, Lyle\nCathy, Ian\nHawthorne Ridge Dr. W. Lafayette, IN\n~1988", "comment": "", "filename": "Scan2025-04-07_194924.png"}, {"src": "Scan2025-04-07_195039.png", "caption": "Nancy Wilson", "comment": "", "filename": "Scan2025-04-07_195039.png"}, {"src": "Scan2025-04-07_195108.png", "caption": "Randy, Cathy, Jim, Lisa\n1968 Lincoln's Birthplace", "comment": "", "filename": "Scan2025-04-07_195108.png"}, {"src": "Scan2025-04-07_195141.png", "caption": "Randy, Lisa, Cathy, Jim\nWashington, D.C. 1967", "comment": "", "filename": "Scan2025-04-07_195141.png"}, {"src": "Scan2025-04-07_195211.png", "caption": "Cathy, Randy, Lisa, Jim\nLincoln Memorial 1967", "comment": "", "filename": "Scan2025-04-07_195211.png"}, {"src": "Scan2025-04-07_195239.png", "caption": "Randy, Cathy, Lisa\n1968", "comment": "", "filename": "Scan2025-04-07_195239.png"}, {"src": "Scan2025-04-07_195307.png", "caption": "Cathy, Lisa, Randy\nSt. Louis Zoo\nAugust 1968", "comment": "", "filename": "Scan2025-04-07_195307.png"}, {"src": "Scan2025-04-07_195336.png", "caption": "Randy, Lisa, Cathy\nAug. 1968", "comment": "", "filename": "Scan2025-04-07_195336.png"}, {"src": "Scan2025-04-07_195458.png", "caption": "Randy, Cathy, Lisa\nGushwa, Lafayette, IN", "comment": "", "filename": "Scan2025-04-07_195458.png"}, {"src": "Scan2025-04-07_195527.png", "caption": "Lisa, Randy, Cathy\nGettysburg Penn.\nAug. 1969", "comment": "", "filename": "Scan2025-04-07_195527.png"}, {"src": "Scan2025-04-07_195609.png", "caption": "Cathy, Lisa, Randy\nChristma 1965\nGushwa, W. Lafayette, IN", "comment": "", "filename": "Scan2025-04-07_195609.png"}, {"src": "Scan2025-04-07_195643.png", "caption": "Cathy \nRandy\n1967", "comment": "", "filename": "Scan2025-04-07_195643.png"}, {"src": "Scan2025-04-07_195712.png", "caption": "Lisa, Cathy, Randy\nMay 1964", "comment": "", "filename": "Scan2025-04-07_195712.png"}, {"src": "Scan2025-04-07_195742.png", "caption": "Cathy, Randy, Lisa\nChristmas 1966", "comment": "", "filename": "Scan2025-04-07_195742.png"}, {"src": "Scan2025-04-07_195812.png", "caption": "Randy, Lisa, Cathy\nHyde Park, Poughkeepsie, N.Y. 1967", "comment": "", "filename": "Scan2025-04-07_195812.png"}, {"src": "Scan2025-04-07_195844.png", "caption": "Lisa, Randy, Cathy\nOct. 1968\nGushwa, W. Lafayette, IN", "comment": "", "filename": "Scan2025-04-07_195844.png"}, {"src": "Scan2025-04-07_195911.png", "caption": "Cathy, Lisa, Randy\nNov. 1967", "comment": "", "filename": "Scan2025-04-07_195911.png"}, {"src": "Scan2025-04-07_195935.png", "caption": "Cathy, Jen, Lisa\n~1976", "comment": "", "filename": "Scan2025-04-07_195935.png"}, {"src": "Scan2025-04-07_200001.png", "caption": "Randy, Cathy, Lisa\nFrancis Scott Key Memorial\nBaltimore, Md.\nAug. 1968", "comment": "", "filename": "Scan2025-04-07_200001.png"}, {"src": "Scan2025-04-07_200029.png", "caption": "Randy, Cathy, Nancy, Lisa\nEmpire State Building N.Y.C. 1967", "comment": "", "filename": "Scan2025-04-07_200029.png"}, {"src": "Scan2025-04-07_200059.png", "caption": "Randy, Lisa\nJune 1968\nGushwa, W. Lafayette, IN", "comment": "", "filename": "Scan2025-04-07_200059.png"}, {"src": "Scan2025-04-07_200125.png", "caption": "Gary Thorpe\nLafayette June 1969", "comment": "", "filename": "Scan2025-04-07_200125.png"}, {"src": "Scan2025-04-07_200151.png", "caption": "Randy, Lisa, Cathy\nAug. 1968", "comment": "", "filename": "Scan2025-04-07_200151.png"}, {"src": "Scan2025-04-07_200219.png", "caption": "Lisa, Randy, Cathy\nSanta Claus, Indiana 1968", "comment": "", "filename": "Scan2025-04-07_200219.png"}, {"src": "Scan2025-04-07_200247.png", "caption": "Cathy, Randy,\nLisa", "comment": "", "filename": "Scan2025-04-07_200247.png"}, {"src": "Scan2025-04-07_200314.png", "caption": "Cathy, Lisa, Randy\nCatskill Game Farm\nCatskill, N.Y. 1967", "comment": "", "filename": "Scan2025-04-07_200314.png"}, {"src": "Scan2025-04-07_200339.png", "caption": "Lisa, Cathy\nGushwa, W. Lafayette, IN\n~1967", "comment": "", "filename": "Scan2025-04-07_200339.png"}, {"src": "Scan2025-04-07_200410.png", "caption": "Lisa, Randy, Cathy\nPoughkeepsi, N.Y. Hudson River Bridge 1967", "comment": "", "filename": "Scan2025-04-07_200410.png"}, {"src": "Scan2025-04-07_200434.png", "caption": "Lisa, Randy, Cathy\nChicago May 1969", "comment": "", "filename": "Scan2025-04-07_200434.png"}, {"src": "Scan2025-04-07_200507.png", "caption": "Randy, Lisa, Jim, Cathy\nJuly 1965", "comment": "", "filename": "Scan2025-04-07_200507.png"}, {"src": "Scan2025-04-07_200533.png", "caption": "Cathy, Lisa\nAug. 1966\nGushwa, W. Lafayette, IN", "comment": "", "filename": "Scan2025-04-07_200533.png"}, {"src": "Scan2025-04-07_200557.png", "caption": "Randy, Lisa, Cathy\nFirst day of school, 1967\nGushwa, W. Lafayette, IN", "comment": "", "filename": "Scan2025-04-07_200557.png"}, {"src": "Scan2025-04-07_200624.png", "caption": "Lisa, Randy\n~1967\nGushwa, W. Lafayette, IN", "comment": "", "filename": "Scan2025-04-07_200624.png"}, {"src": "Scan2025-04-07_200659.png", "caption": "I shot this black bear near Blind River Canada. After gutting it, I packed it full of ice for the trip home. I then took it to a taxidermist who skinned it and mounted it. We ate the meat.", "comment": "", "filename": "Scan2025-04-07_200659.png"}, {"src": "Scan2025-04-07_200726.png", "caption": "Cathy\nRandy\nLisa\nJune 1968\nGushwa, W. Lafayette, IN", "comment": "", "filename": "Scan2025-04-07_200726.png"}, {"src": "Scan2025-04-07_200750.png", "caption": "Randy, Lisa, Cathy\nJuly 1968", "comment": "", "filename": "Scan2025-04-07_200750.png"}, {"src": "Scan2025-04-07_200814.png", "caption": "Lisa, Cathy, Randy\nFirst day of school ~1969\nGushwa, W. Lafayette, IN", "comment": "", "filename": "Scan2025-04-07_200814.png"}, {"src": "Scan2025-04-07_200843.png", "caption": "Cathy, Lisa\nXmas 1967\nGushwa, Lafayette, IN", "comment": "", "filename": "Scan2025-04-07_200843.png"}, {"src": "Scan2025-04-07_200913.png", "caption": "Cathy, Santa, Randy\nLisa\nSanta Clause Land, Indiana\n~1969", "comment": "", "filename": "Scan2025-04-07_200913.png"}, {"src": "Scan2025-04-07_200948.png", "caption": "Randy, Cathy, Lisa\nSt. Louis Zoo Aug.68", "comment": "", "filename": "Scan2025-04-07_200948.png"}, {"src": "Scan2025-04-07_201021.png", "caption": "Lisa, Cathy, Randy\n~1969", "comment": "", "filename": "Scan2025-04-07_201021.png"}, {"src": "Scan2025-04-07_201048.png", "caption": "Cathy, Lisa, Randy\nXmas 1967", "comment": "", "filename": "Scan2025-04-07_201048.png"}, {"src": "Scan2025-04-07_201117.png", "caption": "Cathy, Lisa, Randy\nJuly 1964\nGushwa, Lafayette, IN", "comment": "", "filename": "Scan2025-04-07_201117.png"}, {"src": "Scan2025-04-07_201332.png", "caption": "Randy, Cathy, Lisa\nWashington, D.C. 1967", "comment": "", "filename": "Scan2025-04-07_201332.png"}, {"src": "Scan2025-04-07_201356.png", "caption": "Lisa, Randy, Cathy\nGettysburg Penn. 1969 Aug.", "comment": "", "filename": "Scan2025-04-07_201356.png"}, {"src": "Scan2025-04-07_201425.png", "caption": "Aunt Cindy, Cathy, Randy\nLisa\nOct. 1964", "comment": "", "filename": "Scan2025-04-07_201425.png"}, {"src": "Scan2025-04-07_201452.png", "caption": "Jim, Lisa, Cathy, Randy\nCatskill Game Farm\nCatskill, N.Y. 1967", "comment": "", "filename": "Scan2025-04-07_201452.png"}, {"src": "Scan2025-04-07_201521.png", "caption": "Lisa, Cathy, Jen\nHawthorne Ridge Dr. W. Lafayette, IN", "comment": "", "filename": "Scan2025-04-07_201521.png"}, {"src": "Scan2025-04-07_201555.png", "caption": "Randy\nLisa, Cathy\nJen\n~1974", "comment": "", "filename": "Scan2025-04-07_201555.png"}, {"src": "Scan2025-04-07_201633.png", "caption": "Cathy, Lisa, Randy (Santa is probably Jim)\n1968\nGushwa, Lafayette, IN", "comment": "", "filename": "Scan2025-04-07_201633.png"}, {"src": "Scan2025-04-07_201709.png", "caption": "Lisa, Randy, Cathy\nSept. 1969 Pokey & the kids\nGushwa, Lafayette, IN", "comment": "", "filename": "Scan2025-04-07_201709.png"}, {"src": "Scan2025-04-07_201738.png", "caption": "Cathy, Lisa, Randy\n~1968", "comment": "", "filename": "Scan2025-04-07_201738.png"}, {"src": "Scan2025-04-07_201810.png", "caption": "Cathy, Lisa, Rrandy\nNov. 1967", "comment": "", "filename": "Scan2025-04-07_201810.png"}, {"src": "Scan2025-04-07_201838.png", "caption": "Randy, Lisa, Jim\n11:12am, July 9, 1970\nGatlinburg, TN", "comment": "", "filename": "Scan2025-04-07_201838.png"}, {"src": "Scan2025-04-07_201913.png", "caption": "Jen, Lisa\nChrismas\n1972\nHawthorne Ridge Dr., W. Lafayette, IN", "comment": "", "filename": "Scan2025-04-07_201913.png"}, {"src": "Scan2025-04-07_201943.png", "caption": "Lisa, Cathy, Randy\nJan 1965", "comment": "", "filename": "Scan2025-04-07_201943.png"}, {"src": "Scan2025-04-07_202018.png", "caption": "Cathy, Lisa, Randy\nEaster 1969\nGushwa Dr., Lafayette, IN", "comment": "", "filename": "Scan2025-04-07_202018.png"}, {"src": "Scan2025-04-07_202048.png", "caption": "Lisa, Randy, Cathy\nJen\nFirstday of school, 1970", "comment": "", "filename": "Scan2025-04-07_202048.png"}, {"src": "Scan2025-04-07_202118.png", "caption": "Lisa, Randy, Cathy\nFirstday of school, 1970", "comment": "", "filename": "Scan2025-04-07_202118.png"}, {"src": "Scan2025-04-07_202211.png", "caption": "Lisa, Randy, Cathy\nFirst day of school 1972\nHawthorne Ridge Dr., W. Lafayette, IN", "comment": "", "filename": "Scan2025-04-07_202211.png"}, {"src": "Scan2025-04-07_202240.png", "caption": "Cathy, Lisa, Randy\nChristmas 1967\nGushwa Dr., Lafayette, IN", "comment": "", "filename": "Scan2025-04-07_202240.png"}, {"src": "Scan2025-04-07_202316.png", "caption": "Lisa, Cathy\nFeb. 1967\nGushwa Dr., Lafayette, IN", "comment": "", "filename": "Scan2025-04-07_202316.png"}, {"src": "Scan2025-04-07_202346.png", "caption": "Lisa, Cathy, Randy\n~1967\nGushwa Dr., Lafayette, IN", "comment": "", "filename": "Scan2025-04-07_202346.png"}, {"src": "Scan2025-04-07_202415.png", "caption": "Cathy, Lisa, Randy\nPenn. Aug 1969", "comment": "", "filename": "Scan2025-04-07_202415.png"}, {"src": "Scan2025-04-07_202442.png", "caption": "Jim\nLisa, Cathy, Randy\nGettysburg Penn. Aug. 1968", "comment": "", "filename": "Scan2025-04-07_202442.png"}, {"src": "Scan2025-04-07_202508.png", "caption": "Randy, Lisa, Cathy\n~1970", "comment": "", "filename": "Scan2025-04-07_202508.png"}, {"src": "Scan2025-04-07_202532.png", "caption": "Lisa\nChristmas\n~1972", "comment": "", "filename": "Scan2025-04-07_202532.png"}, {"src": "Scan2025-04-07_202802.png", "caption": "Randy\nLisa, Cathy\nJen\n~1974", "comment": "", "filename": "Scan2025-04-07_202802.png"}, {"src": "Scan2025-04-07_202829.png", "caption": "Jack Cole\nMartha Cole Haynes\nCole Farmstead, Williamsport, IN", "comment": "", "filename": "Scan2025-04-07_202829.png"}, {"src": "Scan2025-04-07_202909.png", "caption": "Jen, Lisa\n~1980", "comment": "", "filename": "Scan2025-04-07_202909.png"}, {"src": "Scan2025-04-07_203000.png", "caption": "Jen, Lisa\n~1980", "comment": "", "filename": "Scan2025-04-07_203000.png"}, {"src": "Scan2025-04-07_203030.png", "caption": "Randy, Cathy, Lisa\nAugust 1966\nGushwa Dr., Lafayette, IN", "comment": "", "filename": "Scan2025-04-07_203030.png"}, {"src": "Scan2025-04-07_203121.png", "caption": "Jim\nLisa\nJen\nStone Mountain, GA\n~1980", "comment": "", "filename": "Scan2025-04-07_203121.png"}, {"src": "Scan2025-04-07_203151.png", "caption": "Randy, Cathy\nXmas 62", "comment": "", "filename": "Scan2025-04-07_203151.png"}, {"src": "Scan2025-04-07_203226.png", "caption": "Cathy\nJen, Lisa, Jim\n~1972\nHawthorne Ridge Dr., W. Lafayette, IN", "comment": "", "filename": "Scan2025-04-07_203226.png"}, {"src": "Scan2025-04-07_203258.png", "caption": "Jeff Wilson, Randy, Cathy\nLisa, Gary Wilson, John Wilson\nJune 1968", "comment": "", "filename": "Scan2025-04-07_203258.png"}, {"src": "Scan2025-04-07_203328.png", "caption": "left to right:\n___?____, Geneva holding Nancy Wilson, Mamie, Evelyn with Joanne & Bob Melton and Donnie Wilson?", "comment": "", "filename": "Scan2025-04-07_203328.png"}, {"src": "Scan2025-04-07_203357.png", "caption": "(From left, clockwise):\nBilly or Eddie Haynes, unknown, Lula Cole, Jo Cole, Nancy Cole, Martha Haynes (standing), Jeannie Cole (standing), Lewis Cole, Tony Cole, Dick Cole, Jim Cole, Sam Haynes", "comment": "", "filename": "Scan2025-04-07_203357.png"}, {"src": "Scan2025-04-07_203424.png", "caption": "Tigon, Jen\nApril 1986\nHawthorne Ridge Dr. W. Lafayette, IN", "comment": "", "filename": "Scan2025-04-07_203424.png"}, {"src": "Scan2025-04-07_203454.png", "caption": "Jim and Nancy's 40th wedding anniversary\n(back) Cathy, Nancy, Jim, Randy\n(front) Lisa, Jen\nBluefin Cir., Indianapolis, IN", "comment": "", "filename": "Scan2025-04-07_203454.png"}, {"src": "Scan2025-04-07_203536.png", "caption": "(back) Mark, Lyle\nRandy, Jim, Nancy\nMike, Lisa, Jen, Cathy\nTigon, Ian\n~1988\nHawthorne Ridge Dr., W. Lafayette, IN", "comment": "", "filename": "Scan2025-04-07_203536.png"}, {"src": "Scan2025-04-07_203606.png", "caption": "Tornado!\n1974\nHawthorne Ridge Dr., W. Lafayette, IN", "comment": "", "filename": "Scan2025-04-07_203606.png"}, {"src": "Scan2025-04-07_203636.png", "caption": "Lisa\n(unknown in the background)\nEaster 1973\nHawthorne Ridge Dr., W. Lafayette, IN", "comment": "", "filename": "Scan2025-04-07_203636.png"}, {"src": "Scan2025-04-07_203707.png", "caption": "1976\nCathy 16\nRandy 15\nLisa 11\nJenni 5", "comment": "", "filename": "Scan2025-04-07_203707.png"}, {"src": "Scan2025-04-07_203749.png", "caption": "Cathy, Randy, Lisa\n1968", "comment": "", "filename": "Scan2025-04-07_203749.png"}, {"src": "Scan2025-04-07_203818.png", "caption": "Nancy, Tigon\n1987\nRiverbanks Zoo, Columbia, South Carolina", "comment": "", "filename": "Scan2025-04-07_203818.png"}, {"src": "Scan2025-04-07_203848.png", "caption": "Cathy, Jim, Nancy, Ian, Tigon, Jen, Lyle\n~1988\nHawthorne Ridge Dr., W. Lafayette, IN", "comment": "", "filename": "Scan2025-04-07_203848.png"}, {"src": "Scan2025-04-07_203918.png", "caption": "Jim, Tigon\nJan. 1986\nCortez Dr., W. Lafayette, IN", "comment": "", "filename": "Scan2025-04-07_203918.png"}, {"src": "Scan2025-04-07_203944.png", "caption": "Jen, Jim, Tigon\n1986\nHawthorne Ridge Dr., W. Lafayette, IN", "comment": "", "filename": "Scan2025-04-07_203944.png"}, {"src": "Scan2025-04-07_204012.png", "caption": "Mark, Mike, Lisa, Jim\nTigon\n~1988\nHawthorne Ridge Dr., W. Lafayette, IN", "comment": "", "filename": "Scan2025-04-07_204012.png"}, {"src": "Scan2025-04-07_204039.png", "caption": "Nancy, Ian, Jim, Alex, Cathy, Lyle\nBluefin Cir., Indianpolis, IN", "comment": "", "filename": "Scan2025-04-07_204039.png"}, {"src": "Scan2025-04-07_204108.png", "caption": "Lyle\nHappy  Hollow Park, W. Lafayette, IN\n~1985", "comment": "", "filename": "Scan2025-04-07_204108.png"}, {"src": "Scan2025-04-07_204135.png", "caption": "Lisa, Tigon, Lyle\nHappy  Hollow Park, W. Lafayette, IN\n~1985", "comment": "", "filename": "Scan2025-04-07_204135.png"}, {"src": "Scan2025-04-07_204219.png", "caption": "Lisa, Grandpa Wilson, Jen\nHawthorne Ridge, W. Lafayette, IN", "comment": "", "filename": "Scan2025-04-07_204219.png"}, {"src": "Scan2025-04-07_204249.png", "caption": "1st day of school Sept 1969\nGushwa Dr., Lafayette, IN", "comment": "", "filename": "Scan2025-04-07_204249.png"}, {"src": "Scan2025-04-07_204318.png", "caption": "1987\nColumbia, South Carolina", "comment": "", "filename": "Scan2025-04-07_204318.png"}, {"src": "Scan2025-04-07_204357.png", "caption": "Kenny B. Wilson, Lisa, Geneva Wilson\nHigh School Graduation 1982\nHawthorne Ridge Dr., W. Lafayette, IN", "comment": "", "filename": "Scan2025-04-07_204357.png"}, {"src": "Scan2025-04-07_204424.png", "caption": "Kenny B. Wilson, Lisa, Geneva Wilson\nHigh School Graduation 1982\nHawthorne Ridge Dr., W. Lafayette, IN", "comment": "", "filename": "Scan2025-04-07_204424.png"}, {"src": "Scan2025-04-07_204451.png", "caption": "Lisa\nHigh School Graduation 1982\nHawthorne Ridge Dr., W. Lafayette, IN", "comment": "", "filename": "Scan2025-04-07_204451.png"}, {"src": "Scan2025-04-07_204520.png", "caption": "Wilson farmstead\nWilliamsport, IN", "comment": "", "filename": "Scan2025-04-07_204520.png"}, {"src": "Scan2025-04-07_204550.png", "caption": "Lady (dog)\n~1981\nHawthorne Ridge Dr., W. Lafayette, IN", "comment": "", "filename": "Scan2025-04-07_204550.png"}, {"src": "Scan2025-04-07_204619.png", "caption": "Tigon, Kenny B. Wilson\n~1984\nWilliamsport, IN", "comment": "", "filename": "Scan2025-04-07_204619.png"}, {"src": "Scan2025-04-07_204641.png", "caption": "Lisa - 1979\n15 1/2", "comment": "", "filename": "Scan2025-04-07_204641.png"}, {"src": "Scan2025-04-07_204701.png", "caption": "Lady\nHawthorne Ridge Dr., W. Lafayette, IN", "comment": "", "filename": "Scan2025-04-07_204701.png"}, {"src": "Scan2025-04-07_204730.png", "caption": "(in back) Cathy, Alex\nJen, Ethan, Lisa\n2006\nAmes, IA", "comment": "", "filename": "Scan2025-04-07_204730.png"}, {"src": "Scan2025-04-07_204758.png", "caption": "Wilson farmstead", "comment": "", "filename": "Scan2025-04-07_204758.png"}, {"src": "Scan2025-04-07_204821.png", "caption": "Wilson farmstead", "comment": "", "filename": "Scan2025-04-07_204821.png"}, {"src": "Scan2025-04-07_204847.png", "caption": "Jen, Tigon, Mike\nJen's college graduation", "comment": "", "filename": "Scan2025-04-07_204847.png"}, {"src": "Scan2025-04-07_204915.png", "caption": "Nancy, Lisa, Tigon\n2006", "comment": "", "filename": "Scan2025-04-07_204915.png"}, {"src": "Scan2025-04-07_204945.png", "caption": "Lisa\nGushwa Dr., Lafayette, IN", "comment": "", "filename": "Scan2025-04-07_204945.png"}, {"src": "Scan2025-04-07_205011.png", "caption": "Lisa\nMay 1964", "comment": "", "filename": "Scan2025-04-07_205011.png"}, {"src": "Scan2025-04-07_205034.png", "caption": "Lisa\nFirst day of school, 1970\nGushwa Dr., Lafayette, IN", "comment": "", "filename": "Scan2025-04-07_205034.png"}, {"src": "Scan2025-04-07_205055.png", "caption": "Lisa\nApril 1971\nGushwa Dr., Lafayette, IN", "comment": "", "filename": "Scan2025-04-07_205055.png"}, {"src": "Scan2025-04-07_205117.png", "caption": "Lisa, Tammy Wethington (friend)\nOct 1970\nGushwa Dr., Lafayette, IN", "comment": "", "filename": "Scan2025-04-07_205117.png"}, {"src": "Scan2025-04-07_205140.png", "caption": "Lisa and first bike\n1969\nGushwa Dr., Lafayette, IN", "comment": "", "filename": "Scan2025-04-07_205140.png"}, {"src": "Scan2025-04-07_205206.png", "caption": "Becky Haynes, Ellen (Sissy) Haynes, Gary Wilson, Lisa, Kenny B. Wilson\nMarch 1971\nGushwa Dr., Lafayette, IN", "comment": "", "filename": "Scan2025-04-07_205206.png"}, {"src": "Scan2025-04-07_205230.png", "caption": "Jen, Lisa\nFeb. 1971", "comment": "", "filename": "Scan2025-04-07_205230.png"}, {"src": "Scan2025-04-07_205253.png", "caption": "Unknown, Lisa\nSept 1965", "comment": "", "filename": "Scan2025-04-07_205253.png"}, {"src": "Scan2025-04-07_205317.png", "caption": "Lisa\nEaster 1966\nCole farmstead, Williamsport, IN", "comment": "", "filename": "Scan2025-04-07_205317.png"}, {"src": "Scan2025-04-07_205341.png", "caption": "Lisa, Puff \nSeptember 1969\nGushwa Dr., Lafayette, IN", "comment": "", "filename": "Scan2025-04-07_205341.png"}, {"src": "Scan2025-04-07_205404.png", "caption": "Lisa\nKindergarten 1969", "comment": "", "filename": "Scan2025-04-07_205404.png"}, {"src": "Scan2025-04-07_205432.png", "caption": "Lisa\nFirst grade 1970", "comment": "", "filename": "Scan2025-04-07_205432.png"}, {"src": "Scan2025-04-07_205455.png", "caption": "Lisa\nJuly 1966\nGushwa Dr., Lafayette, IN", "comment": "", "filename": "Scan2025-04-07_205455.png"}, {"src": "Scan2025-04-07_210038.png", "caption": "Nancy, Lisa\n2006\nS. 500th, Ames, IA", "comment": "", "filename": "Scan2025-04-07_210038.png"}, {"src": "Scan2025-04-07_210129.png", "caption": "Lisa, Jen (holding Ethan), Nancy, Cathy\nTigon's wedding\nJuly 15, 2006, Nevada, IA", "comment": "", "filename": "Scan2025-04-07_210129.png"}, {"src": "Scan2025-04-07_210204.png", "caption": "Cathy, Lisa, Geneva Wilson, Randy, Jen\nBluefin Cir., Indianapolis, IN", "comment": "", "filename": "Scan2025-04-07_210204.png"}, {"src": "Scan2025-04-07_210234.png", "caption": "Randy, Cathy, Ian, Mike, Lisa, Mark, Tigon, Jim, Nancy\n1987\nHawthorne Ridge Dr., W. Lafayette, IN", "comment": "", "filename": "Scan2025-04-07_210234.png"}, {"src": "Scan2025-04-07_210304.png", "caption": "Nancy, Jen, Lisa, Cathy, Jim\nHoover Rd., Rochester, NY\n1999", "comment": "", "filename": "Scan2025-04-07_210304.png"}, {"src": "Scan2025-04-07_210334.png", "caption": "Lisa, Nancy\nS. 500th Ave., Ames, IA\n2006", "comment": "", "filename": "Scan2025-04-07_210334.png"}, {"src": "Scan2025-04-07_210401.png", "caption": "Nancy, Jen, Lisa, Cathy\nHoover Rd., Rochester, NY\n1999", "comment": "", "filename": "Scan2025-04-07_210401.png"}, {"src": "Scan2025-04-07_210431.png", "caption": "Jen, Tigon, Mark, Lisa, Nancy\n~1990\nPedestrian brridge over Genesee River, Rochester, NY", "comment": "", "filename": "Scan2025-04-07_210431.png"}, {"src": "Scan2025-04-07_210503.png", "caption": "Riorden telling Granny all about the book. Indy July 2013", "comment": "", "filename": "Scan2025-04-07_210503.png"}, {"src": "Scan2025-04-07_210533.png", "caption": "Rioden showing Pop that big frog!\nBluefin Cir., Indianpolis, IN", "comment": "", "filename": "Scan2025-04-07_210533.png"}, {"src": "Scan2025-04-07_210600.png", "caption": "Jen, Tigon, Lisa (Ethan in stroller)\n2006\nNevada, IA", "comment": "", "filename": "Scan2025-04-07_210600.png"}, {"src": "Scan2025-04-07_210628.png", "caption": "Tigon, Ian\n1988\nHawthorne Ridge Dr., W. Lafayette, IN", "comment": "", "filename": "Scan2025-04-07_210628.png"}, {"src": "Scan2025-04-07_210711.png", "caption": "Cindy Wilson, Kenny B. Wilson\nWilson farmstead, Williamsport, IN", "comment": "", "filename": "Scan2025-04-07_210711.png"}, {"src": "Scan2025-04-07_210737.png", "caption": "Kenny B. Wilson\nWilson farmstead, Williamsport, IN", "comment": "", "filename": "Scan2025-04-07_210737.png"}, {"src": "Scan2025-04-07_210800.png", "caption": "Kenny B. Wilson\nWilson farmstead, Williamsport, IN", "comment": "", "filename": "Scan2025-04-07_210800.png"}, {"src": "Scan2025-04-07_210822.png", "caption": "Cindy Wilson\nWilson farmstead, Williamsport, IN\n~1956", "comment": "", "filename": "Scan2025-04-07_210822.png"}, {"src": "Scan2025-04-07_210845.png", "caption": "Wilson farmstead, Williamsport, IN", "comment": "", "filename": "Scan2025-04-07_210845.png"}, {"src": "Scan2025-04-07_210909.png", "caption": "Wilson farmstead, Williamsport, IN", "comment": "", "filename": "Scan2025-04-07_210909.png"}, {"src": "Scan2025-04-07_210947.png", "caption": "Kenny B. Wilson\nWilson farmstead, Williamsport, IN", "comment": "", "filename": "Scan2025-04-07_210947.png"}, {"src": "Scan2025-04-07_211012.png", "caption": "Nancy Wilson\nSummer 1956\nWilson farmstead, Williamsport, IN", "comment": "", "filename": "Scan2025-04-07_211012.png"}, {"src": "Scan2025-04-07_211041.png", "caption": "Nancy Wilson\nSummer 1956\nWilson farmstead, Williamsport, IN", "comment": "", "filename": "Scan2025-04-07_211041.png"}, {"src": "Scan2025-04-07_211108.png", "caption": "Nancy Wilson\nSummer 1956\nWilson farmstead, Williamsport, IN", "comment": "", "filename": "Scan2025-04-07_211108.png"}, {"src": "Scan2025-04-07_211134.png", "caption": "unknown\nSummer 1956\nWilson farmstead, Williamsport, IN", "comment": "", "filename": "Scan2025-04-07_211134.png"}, {"src": "Scan2025-04-07_211235.png", "caption": "Nancy Wilson", "comment": "", "filename": "Scan2025-04-07_211235.png"}, {"src": "Scan2025-04-07_211309.png", "caption": "Black bean hanging at campsite north of Blind River, Ontario", "comment": "", "filename": "Scan2025-04-07_211309.png"}, {"src": "Scan2025-04-07_211339.png", "caption": "Jennifer Cole\n~1976", "comment": "", "filename": "Scan2025-04-07_211339.png"}, {"src": "Wilson wedding anniversary.png", "caption": "Kenny B & Geneva Wilson\n50th wedding anniversary", "comment": "", "filename": "Wilson wedding anniversary.png"}];
+
+let current = 0;
+const lb        = document.getElementById('lightbox');
+const lbImg     = document.getElementById('lb-img');
+const lbHead    = document.getElementById('lb-heading');
+const lbCap     = document.getElementById('lb-caption');
+const lbFname   = document.getElementById('lb-filename');
+const lbDl      = document.getElementById('lb-download');
+const lbCtr     = document.getElementById('lb-counter');
+
+function forceDownload(url, filename) {
+  fetch(url)
+    .then(r => r.blob())
+    .then(blob => {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = filename;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+    })
+    .catch(() => {
+      // Fallback: plain navigation with download hint
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      a.click();
+    });
+}
+
+function show(index) {
+  current = (index + photos.length) % photos.length;
+  const p = photos[current];
+  lbImg.src = p.src;
+  lbImg.alt = p.caption || p.comment;
+  lbHead.textContent = p.caption;
+  lbHead.style.display = p.caption ? '' : 'none';
+  lbCap.textContent  = p.comment;
+  lbCap.style.display = p.comment ? '' : 'none';
+  lbFname.textContent = p.filename;
+  lbDl.onclick = () => forceDownload(p.src, p.filename);
+  lbCtr.textContent  = (current + 1) + ' / ' + photos.length;
+  lb.classList.add('active');
+  lb.focus();
+}
+
+function close() { lb.classList.remove('active'); }
+
+document.getElementById('lb-close').addEventListener('click', close);
+document.getElementById('lb-prev').addEventListener('click', () => show(current - 1));
+document.getElementById('lb-next').addEventListener('click', () => show(current + 1));
+lb.addEventListener('click', e => { if (e.target === lb) close(); });
+
+document.addEventListener('keydown', e => {
+  if (!lb.classList.contains('active')) return;
+  if (e.key === 'ArrowLeft')  show(current - 1);
+  if (e.key === 'ArrowRight') show(current + 1);
+  if (e.key === 'Escape')     close();
+});
+
+let touchStartX = 0;
+lb.addEventListener('touchstart', e => { touchStartX = e.changedTouches[0].screenX; }, {passive: true});
+lb.addEventListener('touchend',   e => {
+  const dx = e.changedTouches[0].screenX - touchStartX;
+  if (Math.abs(dx) > 50) show(current + (dx < 0 ? 1 : -1));
+});
+</script>
+</body>
+</html>
